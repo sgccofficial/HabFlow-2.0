@@ -1,0 +1,7 @@
+{
+  "name": "HabitFlow",
+  "description": "A Progressive Web App (PWA) habit tracker with offline persistence, timers, and journaling.",
+  "requestFramePermissions": ["notifications"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
