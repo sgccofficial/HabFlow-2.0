@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAppContext } from '../store/AppContext';
 import { Plus, Trash2, Calendar, List, CheckSquare, Edit3, Save, X } from 'lucide-react';
-import { formatDate } from '../lib/utils';
+import { formatDate, cn } from '../lib/utils';
 import { format } from 'date-fns';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -21,13 +21,13 @@ export function JournalPage() {
       const lines = textBefore.split('\n');
       const lastLine = lines[lines.length - 1];
 
-      const listRe = /^(\s*)([-*])\s+(\[[ xX]\]\s+)?(.*)$/;
+      const listRe = /^(\s*)([-*]|☐|☑|•)\s+(\[[ xX]\]\s+)?(.*)$/;
       const match = lastLine.match(listRe);
       
       if (match) {
         const [ , indent, bullet, checkboxWithSpace, text ] = match;
         
-        if (!text.trim()) {
+        if (!text.trim() && !checkboxWithSpace) {
           e.preventDefault();
           const newTextBefore = lines.slice(0, -1).join('\n') + '\n';
           const newContent = newTextBefore + content.substring(textarea.selectionEnd);
@@ -37,7 +37,10 @@ export function JournalPage() {
           }, 0);
         } else {
           e.preventDefault();
-          const prefix = `${indent}${bullet} ${checkboxWithSpace ? '[ ] ' : ''}`;
+          let prefix = `${indent}${bullet} `;
+          if (checkboxWithSpace) prefix += '[ ] ';
+          if (bullet === '☑') prefix = `${indent}☐ `;
+          
           const insertText = '\n' + prefix;
           const newTextBefore = textBefore + insertText;
           const newContent = newTextBefore + content.substring(textarea.selectionEnd);
@@ -57,10 +60,12 @@ export function JournalPage() {
       const index = checkboxes.indexOf(target);
       if (index > -1) {
         let count = 0;
-        const newContent = currentContent.replace(/^(\s*)([-*])\s+\[( |x|X)\]/gm, (match, space, bullet) => {
+        const newContent = currentContent.replace(/^(\s*)([-*]\s+\[[ xX]\]|☐ |☑ )/gm, (match, space, checkboxStr) => {
           if (count === index) {
             count++;
-            return match.toLowerCase().includes('x') ? `${space}${bullet} [ ]` : `${space}${bullet} [x]`;
+            if (checkboxStr.trim() === '☐') return `${space}☑ `;
+            if (checkboxStr.trim() === '☑') return `${space}☐ `;
+            return match.toLowerCase().includes('x') ? `${space}- [ ]` : `${space}- [x]`;
           }
           count++;
           return match;
@@ -93,7 +98,6 @@ export function JournalPage() {
     .filter(j => !activeHabitId ? true : j.habitId === activeHabitId)
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-
   const insertSyntax = (syntax: string, isEditing: boolean = false) => {
     if (isEditing) {
       setEditContent(prev => prev + (prev.length > 0 && !prev.endsWith('\n') ? '\n' : '') + syntax);
@@ -102,11 +106,40 @@ export function JournalPage() {
     }
   };
 
+  // Basic Journal Analytics
+  const journalStats = React.useMemo(() => {
+    const total = sortedJournal.length;
+    let habitCounts: Record<string, number> = {};
+    sortedJournal.forEach(entry => {
+      if (entry.habitId !== 'general') {
+        habitCounts[entry.habitId] = (habitCounts[entry.habitId] || 0) + 1;
+      }
+    });
+    
+    let topHabitId = null;
+    let max = 0;
+    for (const [hId, count] of Object.entries(habitCounts)) {
+      if (count > max) {
+        max = count;
+        topHabitId = hId;
+      }
+    }
+    const topHabit = habits.find(h => h.id === topHabitId);
+    
+    return { total, topHabit, topHabitCount: max };
+  }, [sortedJournal, habits]);
+
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-24 pt-8 px-4">
+    <div className="pb-24 pt-8 px-4">
       <div className="max-w-md mx-auto">
         <header className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Journal</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            Journal
+          </h1>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            {journalStats.total} {journalStats.total === 1 ? 'entry' : 'entries'}
+            {journalStats.topHabit && ` • Mostly about ${journalStats.topHabit.name}`}
+          </p>
         </header>
 
         <div className="mb-6 flex gap-2 overflow-x-auto pb-2 scrollbar-none">
@@ -127,13 +160,14 @@ export function JournalPage() {
           ))}
         </div>
 
-        <form onSubmit={handleAdd} className="mb-8">
+        <div className="p-4 rounded-3xl transition-colors border border-gray-200/50 dark:border-gray-800/50 shadow-sm bg-white/50 dark:bg-gray-900/50">
+          <form onSubmit={handleAdd} className="mb-8">
           <div className="bg-white dark:bg-gray-900 rounded-2xl p-2 shadow-sm border border-gray-100 dark:border-gray-800">
             <div className="flex gap-2 px-2 pt-2 pb-1 border-b border-gray-100 dark:border-gray-800 mb-2">
-              <button type="button" onClick={() => insertSyntax('- [ ] ')} className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-md transition-colors" title="Add Checkbox">
+              <button type="button" onClick={() => insertSyntax('☐ ')} className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-md transition-colors" title="Add Checkbox">
                 <CheckSquare className="w-4 h-4" />
               </button>
-              <button type="button" onClick={() => insertSyntax('- ')} className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-md transition-colors" title="Add Bullet">
+              <button type="button" onClick={() => insertSyntax('• ')} className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-md transition-colors" title="Add Bullet">
                 <List className="w-4 h-4" />
               </button>
             </div>
@@ -141,7 +175,7 @@ export function JournalPage() {
               value={newContent}
               onChange={(e) => setNewContent(e.target.value)}
               onKeyDown={(e) => handleTextareaKeyDown(e, newContent, setNewContent)}
-              placeholder="Write down your thoughts... Supports Markdown!"
+              placeholder="Write down your thoughts..."
               className="w-full p-3 bg-transparent border-none resize-none focus:ring-0 text-gray-900 dark:text-white placeholder-gray-400"
               rows={4}
             />
@@ -172,10 +206,10 @@ export function JournalPage() {
                   {editingEntryId === entry.id ? (
                     <div>
                       <div className="flex gap-2 mb-2 pb-2 border-b border-gray-100 dark:border-gray-800">
-                        <button type="button" onClick={() => insertSyntax('- [ ] ', true)} className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-md transition-colors" title="Add Checkbox">
+                        <button type="button" onClick={() => insertSyntax('☐ ', true)} className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-md transition-colors" title="Add Checkbox">
                           <CheckSquare className="w-4 h-4" />
                         </button>
-                        <button type="button" onClick={() => insertSyntax('- ', true)} className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-md transition-colors" title="Add Bullet">
+                        <button type="button" onClick={() => insertSyntax('• ', true)} className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-md transition-colors" title="Add Bullet">
                           <List className="w-4 h-4" />
                         </button>
                       </div>
@@ -224,7 +258,7 @@ export function JournalPage() {
                             )
                           }}
                         >
-                          {entry.content}
+                          {entry.content.replace(/^(\s*)☐ /gm, '$1- [ ] ').replace(/^(\s*)☑ /gm, '$1- [x] ').replace(/^(\s*)• /gm, '$1- ')}
                         </Markdown>
                       </div>
                       
@@ -250,6 +284,7 @@ export function JournalPage() {
               );
             })
           )}
+        </div>
         </div>
       </div>
     </div>

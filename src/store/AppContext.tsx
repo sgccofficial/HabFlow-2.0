@@ -1,18 +1,23 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { Habit, JournalEntry, Page } from '../types';
+import { Habit, JournalEntry, Page, JournalSettings } from '../types';
 import { formatDate } from '../lib/utils';
 
 interface AppContextType {
   habits: Habit[];
   journal: JournalEntry[];
+  journalSettings: Record<string, JournalSettings>;
+  appSettings: JournalSettings;
   currentPage: Page;
   activeHabitId: string | null;
   setCurrentPage: (page: Page) => void;
   setActiveHabitId: (id: string | null) => void;
+  updateJournalSettings: (habitId: string, settings: JournalSettings) => void;
+  updateAppSettings: (settings: JournalSettings) => void;
   addHabit: (habit: Omit<Habit, 'id' | 'created' | 'dates'>) => void;
   updateHabit: (id: string, updates: Partial<Omit<Habit, 'id' | 'created'>>) => void;
   deleteHabit: (id: string) => void;
   toggleHabitDate: (id: string, date: string) => void;
+  updateHabitProgress: (id: string, date: string, increment: number) => void;
   addJournalEntry: (entry: Omit<JournalEntry, 'id'>) => void;
   updateJournalEntry: (id: string, content: string) => void;
   deleteJournalEntry: (id: string) => void;
@@ -35,6 +40,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return saved ? JSON.parse(saved) : [];
   });
 
+  const [journalSettings, setJournalSettings] = useState<Record<string, JournalSettings>>(() => {
+    const saved = localStorage.getItem('habitflow_journal_settings');
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  const [appSettings, setAppSettings] = useState<JournalSettings>(() => {
+    const saved = localStorage.getItem('habitflow_app_settings');
+    return saved ? JSON.parse(saved) : {};
+  });
+
   const [currentPage, setCurrentPage] = useState<Page>('habits');
   const [activeHabitId, setActiveHabitId] = useState<string | null>(null);
 
@@ -53,6 +68,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     localStorage.setItem('habitflow_journal', JSON.stringify(journal));
   }, [journal]);
+
+  useEffect(() => {
+    localStorage.setItem('habitflow_journal_settings', JSON.stringify(journalSettings));
+  }, [journalSettings]);
+
+  useEffect(() => {
+    localStorage.setItem('habitflow_app_settings', JSON.stringify(appSettings));
+  }, [appSettings]);
+
+  const updateJournalSettings = (habitId: string, settings: JournalSettings) => {
+    setJournalSettings(prev => ({ ...prev, [habitId]: { ...prev[habitId], ...settings } }));
+  };
+
+  const updateAppSettings = (settings: JournalSettings) => {
+    setAppSettings(prev => ({ ...prev, ...settings }));
+  };
 
   useEffect(() => {
     localStorage.setItem('habitflow_darkmode', JSON.stringify(darkMode));
@@ -119,7 +150,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       .map(h => ({
         title: h.name,
         time: h.reminderTime,
-        lastSentDay: null // initial
+        lastSentDay: null, // initial
+        targetDays: h.targetDays
       }));
 
     try {
@@ -143,7 +175,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // We get current daily reminders
     const dailyReminders = habits
       .filter(h => h.reminderTime)
-      .map(h => ({ title: h.name, time: h.reminderTime, lastSentDay: null }));
+      .map(h => ({ title: h.name, time: h.reminderTime, lastSentDay: null, targetDays: h.targetDays }));
 
     const timerObj = {
       title,
@@ -171,7 +203,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!swSubscription) return;
     const dailyReminders = habits
       .filter(h => h.reminderTime)
-      .map(h => ({ title: h.name, time: h.reminderTime, lastSentDay: null }));
+      .map(h => ({ title: h.name, time: h.reminderTime, lastSentDay: null, targetDays: h.targetDays }));
 
     try {
       await fetch('/api/sync-tasks', {
@@ -213,23 +245,82 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateHabit = (id: string, updates: Partial<Omit<Habit, 'id' | 'created'>>) => {
-    setHabits(habits.map(h => h.id === id ? { ...h, ...updates } : h));
+    setHabits(prev => prev.map(h => h.id === id ? { ...h, ...updates } : h));
   };
 
   const deleteHabit = (id: string) => {
-    setHabits(habits.filter(h => h.id !== id));
+    setHabits(prev => prev.filter(h => h.id !== id));
     // also clean up journal? Optional, but good practice.
-    setJournal(journal.filter(j => j.habitId !== id));
+    setJournal(prev => prev.filter(j => j.habitId !== id));
     if (activeHabitId === id) setActiveHabitId(null);
   };
 
   const toggleHabitDate = (id: string, date: string) => {
-    setHabits(habits.map(h => {
+    setHabits(prev => prev.map(h => {
       if (h.id === id) {
         const dates = h.dates.includes(date)
           ? h.dates.filter(d => d !== date)
           : [...h.dates, date];
-        return { ...h, dates };
+        
+        // Also sync with progress object
+        const progress = { ...(h.progress || {}) };
+        if (dates.includes(date)) {
+          const isTimely = h.durationGoal !== undefined ? h.durationGoal > 0 : h.goalType === 'duration';
+          const durationGoal = h.durationGoal || (h.goalType === 'duration' ? (h.durationUnit === 'hr' ? (h.goalValue || 0) * 3600 : h.durationUnit === 'min' ? (h.goalValue || 0) * 60 : (h.goalValue || 0)) : 0);
+          const isDaily = h.dailyCompletions !== undefined ? h.dailyCompletions > 0 : (h.goalType === 'daily' || h.goalType === 'weekly');
+          const dailyCompletions = h.dailyCompletions || ((h.goalType === 'daily' || h.goalType === 'weekly') ? h.goalValue || 1 : 1);
+          
+          let targetValue = 1;
+          if (isTimely) {
+            targetValue = durationGoal * (isDaily ? dailyCompletions : 1);
+          } else if (isDaily) {
+            targetValue = dailyCompletions;
+          }
+          
+          progress[date] = targetValue; // if they check it, set to goal
+        } else {
+          progress[date] = 0;
+        }
+        
+        return { ...h, dates, progress };
+      }
+      return h;
+    }));
+  };
+
+  const updateHabitProgress = (id: string, date: string, increment: number) => {
+    setHabits(prev => prev.map(h => {
+      if (h.id === id) {
+        const progress = { ...(h.progress || {}) };
+        const current = progress[date] || 0;
+        
+        const isTimely = h.durationGoal !== undefined ? h.durationGoal > 0 : h.goalType === 'duration';
+        const durationGoal = h.durationGoal || (h.goalType === 'duration' ? (h.durationUnit === 'hr' ? (h.goalValue || 0) * 3600 : h.durationUnit === 'min' ? (h.goalValue || 0) * 60 : (h.goalValue || 0)) : 0);
+        const isDaily = h.dailyCompletions !== undefined ? h.dailyCompletions > 0 : (h.goalType === 'daily' || h.goalType === 'weekly');
+        const dailyCompletions = h.dailyCompletions || ((h.goalType === 'daily' || h.goalType === 'weekly') ? h.goalValue || 1 : 1);
+        
+        let targetValue = 1;
+        if (isTimely) {
+          targetValue = durationGoal * (isDaily ? dailyCompletions : 1);
+        } else if (isDaily) {
+          targetValue = dailyCompletions;
+        }
+
+        let next = Math.max(0, current + increment);
+        if (isDaily && !isTimely) {
+          next = Math.min(next, targetValue);
+        }
+        progress[date] = next;
+        
+        // sync legacy dates array for basic presence checks
+        let dates = [...h.dates];
+        if (next >= targetValue && !dates.includes(date)) {
+          dates.push(date);
+        } else if (next === 0 && dates.includes(date)) {
+          dates = dates.filter(d => d !== date);
+        }
+        
+        return { ...h, progress, dates };
       }
       return h;
     }));
@@ -253,8 +344,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AppContext.Provider value={{
-      habits, journal, currentPage, setCurrentPage, activeHabitId, setActiveHabitId,
-      addHabit, updateHabit, deleteHabit, toggleHabitDate,
+      habits, journal, journalSettings, appSettings, currentPage, setCurrentPage, activeHabitId, setActiveHabitId,
+      updateJournalSettings, updateAppSettings,
+      addHabit, updateHabit, deleteHabit, toggleHabitDate, updateHabitProgress,
       addJournalEntry, updateJournalEntry, deleteJournalEntry,
       darkMode, toggleDarkMode, setServerTimer, clearServerTimer
     }}>

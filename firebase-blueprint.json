@@ -1,0 +1,19 @@
+{
+  "project": "HabitFlow Backend",
+  "collections": [
+    {
+      "name": "subscriptions",
+      "model": {
+        "token": "string",
+        "dailyReminders": "list",
+        "activeTimers": "list"
+      },
+      "rules": [
+        {
+          "allow": ["read", "write"],
+          "condition": "true"
+        }
+      ]
+    }
+  ]
+}

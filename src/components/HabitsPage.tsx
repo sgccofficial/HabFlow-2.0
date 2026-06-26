@@ -33,7 +33,7 @@ export function HabitsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-24 pt-8 px-4">
+    <div className="pb-24 pt-8 px-4">
       <div className="max-w-md mx-auto">
         <header className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">HabitFlow</h1>
@@ -62,7 +62,7 @@ export function HabitsPage() {
           {habits.length === 0 ? (
             <div className="text-center py-12 text-gray-500 dark:text-gray-400">
               <p>No habits yet.</p>
-              <p className="text-sm">Add one above to get started!</p>
+              <p className="text-sm">Add one to get started!</p>
             </div>
           ) : (
             habits.map((habit) => (

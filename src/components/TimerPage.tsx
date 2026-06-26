@@ -4,17 +4,41 @@ import { Play, Pause, Square, RefreshCcw, Bell, Flag } from 'lucide-react';
 import { cn, formatDate } from '../lib/utils';
 import { Habit } from '../types';
 
+export function formatTime(secs: number, forceHours: boolean = true) {
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = secs % 60;
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+}
+
+export function parseTime(val: string) {
+  const parts = val.split(':').map(Number);
+  let totalSecs = 0;
+  if (parts.length === 3) {
+    totalSecs = parts[0] * 3600 + parts[1] * 60 + parts[2];
+  } else if (parts.length === 2) {
+    totalSecs = parts[0] * 60 + parts[1];
+  } else if (parts.length === 1) {
+    totalSecs = parts[0];
+  }
+  return isNaN(totalSecs) ? 0 : totalSecs;
+}
+
+let hasLoadedOnce = false;
+
 export function TimerPage() {
-  const { habits, activeHabitId, setActiveHabitId, toggleHabitDate, setServerTimer, clearServerTimer } = useAppContext();
+  const { habits, activeHabitId, setActiveHabitId, toggleHabitDate, updateHabitProgress, setServerTimer, clearServerTimer } = useAppContext();
   
   const [mode, setMode] = useState<'countdown' | 'stopwatch'>('countdown');
   
   // Countdown States
-  const [durationSecs, setDurationSecs] = useState(25 * 60); // 25 min default
-  const [remainingSecs, setRemainingSecs] = useState(25 * 60);
+  const [durationSecs, setDurationSecs] = useState(20 * 60); // 20 min default
+  const [remainingSecs, setRemainingSecs] = useState(20 * 60);
   const [isRunning, setIsRunning] = useState(false);
   const [completedModalOpen, setCompletedModalOpen] = useState(false);
+  const [inputValue, setInputValue] = useState(formatTime(20 * 60));
   const timerRef = useRef<number | null>(null);
+  const previousRemainingSecsRef = useRef(20 * 60);
   
   // Stopwatch States
   const [swTime, setSwTime] = useState(0); // in ms
@@ -26,13 +50,71 @@ export function TimerPage() {
 
   const selectedHabit = habits.find(h => h.id === activeHabitId) || null;
 
+  // Initialize duration from habit goal
+  useEffect(() => {
+    if (!isRunning && mode === 'countdown') {
+      if (selectedHabit && selectedHabit.goalType === 'duration') {
+         const todayStr = formatDate(new Date());
+         const progress = selectedHabit.progress?.[todayStr] || 0;
+         let targetSecs = 0;
+         let remainingSecsForHabit = 0;
+         if (selectedHabit.durationUnit === 'sec') {
+           targetSecs = selectedHabit.goalValue || 0;
+           remainingSecsForHabit = Math.max(0, targetSecs - progress);
+         } else {
+           const targetMins = selectedHabit.durationUnit === 'hr' ? (selectedHabit.goalValue || 0) * 60 : (selectedHabit.goalValue || 0);
+           targetSecs = targetMins * 60;
+           const remainingMins = Math.max(0, targetMins - progress);
+           remainingSecsForHabit = remainingMins * 60;
+         }
+         
+         if (remainingSecsForHabit > 0) {
+           setDurationSecs(remainingSecsForHabit);
+           setRemainingSecs(remainingSecsForHabit);
+           setInputValue(formatTime(remainingSecsForHabit));
+           previousRemainingSecsRef.current = remainingSecsForHabit;
+         } else {
+           // If completed today, still show the original target duration
+           setDurationSecs(targetSecs);
+           setRemainingSecs(targetSecs);
+           setInputValue(formatTime(targetSecs));
+           previousRemainingSecsRef.current = targetSecs;
+         }
+      } else {
+         setDurationSecs(20 * 60);
+         setRemainingSecs(20 * 60);
+         setInputValue(formatTime(20 * 60));
+         previousRemainingSecsRef.current = 20 * 60;
+      }
+    }
+  }, [selectedHabit?.id]);
+
+  // Track progress when running
+  useEffect(() => {
+    if (selectedHabit && selectedHabit.goalType === 'duration' && isRunning && mode === 'countdown') {
+      if (selectedHabit.durationUnit === 'sec') {
+        const oldSecs = durationSecs - previousRemainingSecsRef.current;
+        const newSecs = durationSecs - remainingSecs;
+        if (newSecs > oldSecs) {
+           updateHabitProgress(selectedHabit.id, formatDate(new Date()), newSecs - oldSecs);
+        }
+      } else {
+        const oldMins = Math.floor((durationSecs - previousRemainingSecsRef.current) / 60);
+        const newMins = Math.floor((durationSecs - remainingSecs) / 60);
+        if (newMins > oldMins) {
+           updateHabitProgress(selectedHabit.id, formatDate(new Date()), newMins - oldMins);
+        }
+      }
+    }
+    previousRemainingSecsRef.current = remainingSecs;
+  }, [remainingSecs, isRunning, selectedHabit, durationSecs, mode, updateHabitProgress]);
+
   // Countdown Effect
   useEffect(() => {
     if (isRunning) {
       timerRef.current = window.setInterval(() => {
         setRemainingSecs(prev => {
           if (prev <= 1) {
-            handleComplete();
             return 0;
           }
           return prev - 1;
@@ -45,6 +127,13 @@ export function TimerPage() {
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [isRunning]);
+
+  // Handle completion outside of state updater
+  useEffect(() => {
+    if (isRunning && remainingSecs === 0) {
+      handleComplete();
+    }
+  }, [remainingSecs, isRunning]);
 
   // Stopwatch Effect
   useEffect(() => {
@@ -65,30 +154,59 @@ export function TimerPage() {
     const savedState = localStorage.getItem('habitflow_timerState');
     if (savedState) {
       const parsed = JSON.parse(savedState);
+      const habitStillExists = parsed.habitId ? habits.find(h => h.id === parsed.habitId) : true;
+      
+      if (!habitStillExists) {
+        localStorage.removeItem('habitflow_timerState');
+        setIsRunning(false);
+        setDurationSecs(20 * 60);
+        setRemainingSecs(20 * 60);
+        setInputValue(formatTime(20 * 60));
+        clearServerTimer();
+        return;
+      }
+
       if (parsed.isRunning && parsed.endTime && mode === 'countdown') {
-        const now = Date.now();
-        if (now < parsed.endTime) {
-          setRemainingSecs(Math.floor((parsed.endTime - now) / 1000));
-          setIsRunning(true);
+        if (!hasLoadedOnce) {
+          // JS was killed / fresh reload - pause at last known value
+          setRemainingSecs(parsed.remainingSecs || 20 * 60);
+          setDurationSecs(parsed.durationSecs || parsed.remainingSecs || 20 * 60);
+          setInputValue(formatTime(parsed.remainingSecs || 20 * 60));
+          setIsRunning(false);
         } else {
-          setRemainingSecs(0);
-          setCompletedModalOpen(true);
+          // JS is alive / navigating back - keep running
+          const now = Date.now();
+          if (now < parsed.endTime) {
+            setRemainingSecs(Math.floor((parsed.endTime - now) / 1000));
+            setDurationSecs(parsed.durationSecs || 20 * 60);
+            setIsRunning(true);
+          } else {
+            setRemainingSecs(0);
+            setCompletedModalOpen(true);
+          }
         }
+      } else if (!parsed.isRunning && mode === 'countdown') {
+         setRemainingSecs(parsed.remainingSecs || 20 * 60);
+         setDurationSecs(parsed.durationSecs || parsed.remainingSecs || 20 * 60);
+         setInputValue(formatTime(parsed.remainingSecs || 20 * 60));
+         setIsRunning(false);
       }
     }
-  }, []);
+    hasLoadedOnce = true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
 
   // Save to localstorage
   useEffect(() => {
     if (mode === 'countdown') {
       if (isRunning) {
         const endTime = Date.now() + remainingSecs * 1000;
-        localStorage.setItem('habitflow_timerState', JSON.stringify({ isRunning: true, endTime }));
+        localStorage.setItem('habitflow_timerState', JSON.stringify({ isRunning: true, endTime, habitId: activeHabitId, remainingSecs, durationSecs }));
       } else {
-        localStorage.removeItem('habitflow_timerState');
+        localStorage.setItem('habitflow_timerState', JSON.stringify({ isRunning: false, remainingSecs, durationSecs, habitId: activeHabitId }));
       }
     }
-  }, [isRunning, remainingSecs, mode]);
+  }, [isRunning, remainingSecs, durationSecs, mode, activeHabitId]);
 
   const handleComplete = () => {
     setIsRunning(false);
@@ -115,17 +233,12 @@ export function TimerPage() {
     setCompletedModalOpen(true);
   };
 
-  const formatTime = (secs: number) => {
-    const m = Math.floor(secs / 60);
-    const s = secs % 60;
-    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-  };
-
   const formatSwTime = (ms: number) => {
-    const m = Math.floor(ms / 60000);
+    const h = Math.floor(ms / 3600000);
+    const m = Math.floor((ms % 3600000) / 60000);
     const s = Math.floor((ms % 60000) / 1000);
     const c = Math.floor((ms % 1000) / 10);
-    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${c.toString().padStart(2, '0')}`;
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${c.toString().padStart(2, '0')}`;
   };
 
   // Countdown Handlers
@@ -145,12 +258,14 @@ export function TimerPage() {
   
   const handlePause = () => {
     setIsRunning(false);
+    setInputValue(formatTime(remainingSecs));
     clearServerTimer();
   };
   
   const handleReset = () => {
     setIsRunning(false);
     setRemainingSecs(durationSecs);
+    setInputValue(formatTime(durationSecs));
     clearServerTimer();
   };
 
@@ -172,6 +287,24 @@ export function TimerPage() {
   const handleSwLap = () => {
     setSwLaps(prev => [...prev, swAccumulatedRef.current + (Date.now() - swStartTimeRef.current)]);
   };
+
+  const prevHabitIdRef = useRef<string | null>(activeHabitId);
+
+  useEffect(() => {
+    if (prevHabitIdRef.current !== activeHabitId) {
+      if (isRunning) handleReset();
+      if (swIsRunning) handleSwReset();
+      
+      const newHabit = habits.find(h => h.id === activeHabitId);
+      if (!newHabit || newHabit.goalType !== 'duration') {
+        setDurationSecs(20 * 60);
+        setRemainingSecs(20 * 60);
+        previousRemainingSecsRef.current = 20 * 60;
+      }
+      
+      prevHabitIdRef.current = activeHabitId;
+    }
+  }, [activeHabitId, isRunning, swIsRunning, habits]);
 
   const progress = mode === 'countdown' 
     ? ((durationSecs - remainingSecs) / durationSecs) * 100
@@ -195,10 +328,10 @@ export function TimerPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-24 pt-8 px-4 flex flex-col items-center">
+    <div className="pb-24 px-4 flex flex-col items-center justify-center min-h-[calc(100vh-2rem)]">
       <div className="w-full max-w-sm">
         <header className="mb-6 text-center">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Focus Timer</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Timer</h1>
         </header>
 
         <div className="bg-white dark:bg-gray-900 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col items-center">
@@ -229,42 +362,54 @@ export function TimerPage() {
             </button>
           </div>
 
-          <div className="relative w-64 h-64 mb-8">
+          <div className="relative w-80 h-80 mb-8 flex items-center justify-center">
             {/* SVG Ring */}
-            <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
-              <circle cx="50" cy="50" r="45" fill="none" strokeWidth="6" className="stroke-gray-100 dark:stroke-gray-800" />
-              <circle 
-                cx="50" cy="50" r="45" fill="none" strokeWidth="6" 
-                className="stroke-indigo-500 transition-all duration-1000 ease-linear"
-                strokeLinecap="round"
-                strokeDasharray="283"
-                strokeDashoffset={283 - (283 * progress) / 100}
-              />
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
+            {mode === 'countdown' && (
+              <svg className="absolute inset-0 w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="45" fill="none" strokeWidth="4" className="stroke-gray-100 dark:stroke-gray-800" />
+                <circle 
+                  cx="50" cy="50" r="45" fill="none" strokeWidth="4" 
+                  className="stroke-indigo-500 transition-all duration-1000 ease-linear"
+                  strokeLinecap="round"
+                  strokeDasharray="283"
+                  strokeDashoffset={283 - (283 * progress) / 100}
+                />
+              </svg>
+            )}
+            <div className="relative z-10 flex flex-col items-center justify-center">
               {mode === 'countdown' ? (
-                !isRunning ? (
+                (!isRunning && remainingSecs === durationSecs) ? (
                   <div className="flex flex-col items-center">
-                    <div className="flex items-center gap-1 mb-1">
-                      <input 
-                        type="number"
-                        value={Math.floor(durationSecs / 60)}
-                        onChange={(e) => {
-                          const val = parseInt(e.target.value);
-                          if (!isNaN(val) && val > 0 && val <= 999) {
-                            setDurationSecs(val * 60);
-                            setRemainingSecs(val * 60);
-                          }
-                        }}
-                        className="w-16 bg-transparent text-center border-b-2 border-transparent hover:border-indigo-200 focus:border-indigo-500 focus:outline-none text-5xl font-mono tracking-tighter text-gray-900 dark:text-white"
-                        style={{ MozAppearance: 'textfield' }}
-                      />
-                      <span className="text-xl text-gray-400 font-medium">m</span>
-                    </div>
-                    <div className="flex gap-1 mt-2">
-                      <button onClick={() => {setDurationSecs(5*60); setRemainingSecs(5*60);}} className="text-[10px] uppercase font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 px-2 py-1 rounded">5m</button>
-                      <button onClick={() => {setDurationSecs(25*60); setRemainingSecs(25*60);}} className="text-[10px] uppercase font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 px-2 py-1 rounded">25m</button>
-                      <button onClick={() => {setDurationSecs(60*60); setRemainingSecs(60*60);}} className="text-[10px] uppercase font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 px-2 py-1 rounded">60m</button>
+                    <input 
+                      type="text"
+                      value={inputValue}
+                      onChange={(e) => {
+                        let digits = e.target.value.replace(/\D/g, '');
+                        if (digits.length > 6) {
+                          digits = digits.slice(digits.length - 6);
+                        }
+                        const padded = digits.padStart(6, '0');
+                        const formatted = `${padded.slice(0, 2)}:${padded.slice(2, 4)}:${padded.slice(4, 6)}`;
+                        setInputValue(formatted);
+                      }}
+                      onBlur={() => {
+                        const secs = parseTime(inputValue);
+                        if (secs > 0) {
+                          setDurationSecs(secs);
+                          setRemainingSecs(secs);
+                          setInputValue(formatTime(secs));
+                        } else {
+                          setInputValue(formatTime(durationSecs));
+                        }
+                      }}
+                      className="w-56 bg-transparent text-center border-b-2 border-transparent hover:border-indigo-200 focus:border-indigo-500 focus:outline-none text-5xl font-mono tracking-tighter text-gray-900 dark:text-white"
+                      style={{ MozAppearance: 'textfield' }}
+                    />
+                    <div className="flex gap-1 mt-4">
+                      <button onClick={() => {setDurationSecs(5*60); setRemainingSecs(5*60); setInputValue(formatTime(5*60));}} className="text-[11px] uppercase font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 px-3 py-1.5 rounded-md">5m</button>
+                      <button onClick={() => {setDurationSecs(10*60); setRemainingSecs(10*60); setInputValue(formatTime(10*60));}} className="text-[11px] uppercase font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 px-3 py-1.5 rounded-md">10m</button>
+                      <button onClick={() => {setDurationSecs(30*60); setRemainingSecs(30*60); setInputValue(formatTime(30*60));}} className="text-[11px] uppercase font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 px-3 py-1.5 rounded-md">30m</button>
+                      <button onClick={() => {setDurationSecs(60*60); setRemainingSecs(60*60); setInputValue(formatTime(60*60));}} className="text-[11px] uppercase font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 px-3 py-1.5 rounded-md">1hr</button>
                     </div>
                   </div>
                 ) : (
@@ -295,11 +440,7 @@ export function TimerPage() {
                 >
                   {isRunning ? <Pause className="w-6 h-6" fill="currentColor"/> : <Play className="w-6 h-6 ml-1" fill="currentColor" />}
                 </button>
-                <button 
-                  className="w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-400 opacity-50 cursor-not-allowed"
-                >
-                  <Square className="w-4 h-4" fill="currentColor" />
-                </button>
+                <div className="w-12 h-12" /> {/* Layout balancer */}
               </>
             ) : (
               <>
@@ -308,7 +449,7 @@ export function TimerPage() {
                   className="w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-400 hover:bg-gray-200"
                   title={swIsRunning ? "Lap" : "Reset"}
                 >
-                  {swIsRunning ? <Flag className="w-5 h-5" /> : <Square className="w-4 h-4" fill="currentColor" />}
+                  {swIsRunning ? <Flag className="w-5 h-5" /> : <RefreshCcw className="w-5 h-5" />}
                 </button>
                 <button 
                   onClick={swIsRunning ? handleSwPause : handleSwStart}
@@ -316,7 +457,13 @@ export function TimerPage() {
                 >
                   {swIsRunning ? <Pause className="w-6 h-6" fill="currentColor"/> : <Play className="w-6 h-6 ml-1" fill="currentColor" />}
                 </button>
-                <div className="w-12 h-12" /> {/* Layout balancer */}
+                <button 
+                  onClick={handleSwReset}
+                  className="w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-400 hover:bg-gray-200"
+                  title="Stop"
+                >
+                  <Square className="w-4 h-4" fill="currentColor" />
+                </button>
               </>
             )}
           </div>

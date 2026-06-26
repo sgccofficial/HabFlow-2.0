@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Habit } from '../types';
 import { useAppContext } from '../store/AppContext';
-import { X, ChevronLeft, ChevronRight, Timer, BookOpen } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Timer, BookOpen, PieChart } from 'lucide-react';
 import { formatDate, calculateStreak, cn } from '../lib/utils';
 import { startOfMonth, endOfMonth, eachDayOfInterval, format, isSameMonth, addMonths, subMonths, isAfter, isBefore } from 'date-fns';
 
@@ -30,7 +30,7 @@ export function CalendarModal({ habit, onClose }: CalendarModalProps) {
   
   const days = eachDayOfInterval({ start: startDate, end: endDate });
   
-  const streak = calculateStreak(habit.created, habit.dates);
+  const streak = calculateStreak(habit);
 
   const prevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
   const nextMonth = () => {
@@ -39,7 +39,7 @@ export function CalendarModal({ habit, onClose }: CalendarModalProps) {
     }
   };
 
-  const handleShortcut = (page: 'timer' | 'journal') => {
+  const handleShortcut = (page: 'timer' | 'journal' | 'analytics') => {
     setActiveHabitId(habit.id);
     setCurrentPage(page);
     onClose();
@@ -96,8 +96,12 @@ export function CalendarModal({ habit, onClose }: CalendarModalProps) {
                   bgColor = "bg-green-100 dark:bg-green-900/40";
                   textColor = "text-green-700 dark:text-green-400 font-bold";
                 } else if (!isFuture && !isBeforeCreated) {
-                  bgColor = "bg-red-50 dark:bg-red-900/20";
-                  textColor = "text-red-500 dark:text-red-400";
+                  const dayOfWeek = day.getDay();
+                  const isTargetDay = habit.targetDays ? habit.targetDays.includes(dayOfWeek) : true;
+                  if (isTargetDay) {
+                    bgColor = "bg-red-50 dark:bg-red-900/20";
+                    textColor = "text-red-500 dark:text-red-400";
+                  }
                 }
               }
 
@@ -118,20 +122,27 @@ export function CalendarModal({ habit, onClose }: CalendarModalProps) {
           </div>
         </div>
 
-        <div className="p-4 bg-gray-50 dark:bg-gray-800/50 flex gap-3">
+        <div className="p-4 bg-gray-50 dark:bg-gray-800/50 flex gap-2">
           <button
             onClick={() => handleShortcut('timer')}
-            className="flex-1 flex items-center justify-center gap-2 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+            className="flex-1 flex flex-col items-center justify-center gap-1 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition"
           >
             <Timer className="w-4 h-4 text-indigo-500" />
-            <span className="text-sm font-medium dark:text-gray-200">Start Timer</span>
+            <span className="text-[10px] font-medium dark:text-gray-200">Timer</span>
           </button>
           <button
             onClick={() => handleShortcut('journal')}
-            className="flex-1 flex items-center justify-center gap-2 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+            className="flex-1 flex flex-col items-center justify-center gap-1 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition"
           >
             <BookOpen className="w-4 h-4 text-emerald-500" />
-            <span className="text-sm font-medium dark:text-gray-200">Journal</span>
+            <span className="text-[10px] font-medium dark:text-gray-200">Journal</span>
+          </button>
+          <button
+            onClick={() => handleShortcut('analytics')}
+            className="flex-1 flex flex-col items-center justify-center gap-1 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+          >
+            <PieChart className="w-4 h-4 text-purple-500" />
+            <span className="text-[10px] font-medium dark:text-gray-200">Stats</span>
           </button>
         </div>
       </div>

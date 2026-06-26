@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAppContext } from '../store/AppContext';
-import { CheckCircle2, Timer, BookOpen, Settings } from 'lucide-react';
+import { CheckCircle2, Timer, BookOpen, PieChart } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 export function BottomNav() {
@@ -10,6 +10,7 @@ export function BottomNav() {
     { id: 'habits', label: 'Habits', icon: CheckCircle2 },
     { id: 'journal', label: 'Journal', icon: BookOpen },
     { id: 'timer', label: 'Timer', icon: Timer },
+    { id: 'analytics', label: 'Analytics', icon: PieChart },
   ] as const;
 
   return (
