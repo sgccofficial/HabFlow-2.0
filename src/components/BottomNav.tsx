@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAppContext } from '../store/AppContext';
-import { CheckCircle2, Timer, BookOpen, PieChart } from 'lucide-react';
+import { CheckCircle2, Timer, BookOpen, PieChart, Users } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 export function BottomNav() {

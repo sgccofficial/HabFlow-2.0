@@ -328,18 +328,18 @@ export function TimerPage() {
   };
 
   return (
-    <div className="pb-24 px-4 flex flex-col items-center justify-center min-h-[calc(100vh-2rem)]">
-      <div className="w-full max-w-sm">
-        <header className="mb-6 text-center">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Timer</h1>
+    <div className="pt-8 px-4 pb-4 flex flex-col items-center justify-center min-h-[calc(100dvh-6rem)] overflow-hidden">
+      <div className="w-full max-w-[380px] flex flex-col justify-center mt-4">
+        <header className="mb-4 text-center">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white page-header-title">Timer</h1>
         </header>
 
-        <div className="bg-white dark:bg-gray-900 rounded-3xl p-6 shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col items-center">
+        <div className="bg-white dark:bg-gray-900 rounded-3xl p-7 shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col items-center">
           
           <select 
             value={activeHabitId || ''} 
             onChange={e => setActiveHabitId(e.target.value || null)}
-            className="w-full mb-6 p-3 bg-gray-50 dark:bg-gray-800 border-none rounded-xl text-gray-900 dark:text-white font-medium focus:ring-2 focus:ring-indigo-500"
+            className="w-full mb-4 p-3 bg-gray-50 dark:bg-gray-800 border-none rounded-xl text-gray-900 dark:text-white font-medium focus:ring-2 focus:ring-indigo-500 text-sm"
           >
             <option value="">No habit selected</option>
             {habits.map(h => (
@@ -347,7 +347,7 @@ export function TimerPage() {
             ))}
           </select>
 
-          <div className="flex gap-2 p-1 bg-gray-100 dark:bg-gray-800 rounded-lg mb-8">
+          <div className="flex gap-2 p-1 bg-gray-100 dark:bg-gray-800 rounded-lg mb-6">
             <button 
               onClick={() => { setMode('countdown'); setRemainingSecs(durationSecs); setIsRunning(false); }}
               className={cn("px-4 py-1.5 text-sm font-medium rounded-md transition-colors", mode === 'countdown' ? "bg-white dark:bg-gray-700 shadow flex items-center gap-1.5" : "text-gray-500")}
@@ -362,7 +362,7 @@ export function TimerPage() {
             </button>
           </div>
 
-          <div className="relative w-80 h-80 mb-8 flex items-center justify-center">
+          <div className="relative w-72 h-72 mb-6 flex items-center justify-center">
             {/* SVG Ring */}
             {mode === 'countdown' && (
               <svg className="absolute inset-0 w-full h-full transform -rotate-90" viewBox="0 0 100 100">

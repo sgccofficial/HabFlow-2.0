@@ -2,16 +2,94 @@
   "project": "HabitFlow Backend",
   "collections": [
     {
-      "name": "subscriptions",
+      "name": "users",
       "model": {
-        "token": "string",
-        "dailyReminders": "list",
-        "activeTimers": "list"
+        "displayName": "string",
+        "email": "string",
+        "photoURL": "string",
+        "friendCode": "string",
+        "friends": "list",
+        "friendRequests": "list"
       },
       "rules": [
         {
-          "allow": ["read", "write"],
-          "condition": "true"
+          "allow": ["read"],
+          "condition": "request.auth != null"
+        },
+        {
+          "allow": ["write"],
+          "condition": "request.auth != null && request.auth.uid == documentId"
+        }
+      ]
+    },
+    {
+      "name": "groups",
+      "model": {
+        "name": "string",
+        "members": "list",
+        "owner": "string"
+      },
+      "rules": [
+        {
+          "allow": ["read"],
+          "condition": "request.auth != null && request.auth.uid in resource.data.members"
+        },
+        {
+          "allow": ["create"],
+          "condition": "request.auth != null && request.auth.uid == request.resource.data.owner"
+        },
+        {
+          "allow": ["update", "delete"],
+          "condition": "request.auth != null && request.auth.uid == resource.data.owner"
+        }
+      ]
+    },
+    {
+      "name": "shared_habits",
+      "model": {
+        "uid": "string",
+        "name": "string",
+        "color": "string",
+        "icon": "string",
+        "streak": "number",
+        "todayProgress": "number",
+        "dailyTarget": "number",
+        "visibility": "string",
+        "sharedWithIds": "list",
+        "lastUpdated": "timestamp"
+      },
+      "rules": [
+        {
+          "allow": ["read"],
+          "condition": "request.auth != null && (resource.data.visibility == 'friends' || (resource.data.visibility == 'selected' && request.auth.uid in resource.data.sharedWithIds) || (resource.data.visibility == 'group' && request.auth.uid in resource.data.sharedWithIds) || request.auth.uid == resource.data.uid)"
+        },
+        {
+          "allow": ["write"],
+          "condition": "request.auth != null && request.auth.uid == request.resource.data.uid"
+        }
+      ]
+    },
+    {
+      "name": "encouragements",
+      "model": {
+        "habitId": "string",
+        "fromUid": "string",
+        "toUid": "string",
+        "message": "string",
+        "timestamp": "timestamp"
+      },
+      "rules": [
+        {
+          "allow": ["read"],
+          "condition": "request.auth != null && (request.auth.uid == resource.data.toUid || request.auth.uid == resource.data.fromUid)"
+        },
+        {
+          "allow": ["create"],
+          "condition": "request.auth != null && request.auth.uid == request.resource.data.fromUid"
+        },
+        {
+          "allow": ["delete"],
+          "condition": "request.auth != null && (request.auth.uid == resource.data.fromUid || request.auth.uid == resource.data.toUid)"
         }
       ]
     }

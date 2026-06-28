@@ -13,6 +13,8 @@ export interface Habit {
   targetDays?: number[]; // 0=Sun, 1=Mon... 6=Sat
   dailyCompletions?: number;
   durationGoal?: number; // in seconds
+  visibility?: 'private' | 'friends' | 'selected' | 'group';
+  sharedWithIds?: string[];
 }
 
 export interface JournalEntry {

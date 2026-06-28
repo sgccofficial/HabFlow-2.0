@@ -36,8 +36,8 @@ export function HabitsPage() {
     <div className="pb-24 pt-8 px-4">
       <div className="max-w-md mx-auto">
         <header className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">HabitFlow</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">Build better habits, one step at a time.</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white page-header-title">HabitFlow</h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1 page-header-subtitle">Build better habits, one step at a time.</p>
         </header>
 
         <form onSubmit={handleAdd} className="relative mb-8">

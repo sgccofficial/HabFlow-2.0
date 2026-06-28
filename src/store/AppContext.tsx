@@ -9,6 +9,7 @@ interface AppContextType {
   appSettings: JournalSettings;
   currentPage: Page;
   activeHabitId: string | null;
+  user: any | null;
   setCurrentPage: (page: Page) => void;
   setActiveHabitId: (id: string | null) => void;
   updateJournalSettings: (habitId: string, settings: JournalSettings) => void;
@@ -52,6 +53,71 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const [currentPage, setCurrentPage] = useState<Page>('habits');
   const [activeHabitId, setActiveHabitId] = useState<string | null>(null);
+  const [user, setUser] = useState<any | null>(null);
+
+  useEffect(() => {
+    import('../lib/firebase').then(({ auth }) => {
+      if (auth) {
+        auth.onAuthStateChanged((u: any) => {
+          if (u) {
+            const localPic = localStorage.getItem(`profile_pic_${u.uid}`);
+            if (localPic) {
+              u.photoURL = localPic;
+            }
+          }
+          setUser(u ? { ...u } : null);
+        });
+      }
+    }).catch(e => console.error("Firebase not init", e));
+  }, []);
+
+  useEffect(() => {
+    if (user && habits.length > 0) {
+      import('../lib/social').then(({ syncSharedHabit }) => {
+        habits.forEach(habit => {
+          if (habit.visibility && habit.visibility !== 'private') {
+            syncSharedHabit(habit);
+          }
+        });
+      });
+    }
+  }, [habits, user]);
+
+  useEffect(() => {
+    if (!user) return;
+    const backupData = async () => {
+      try {
+        const { db } = await import('../lib/firebase');
+        const { doc, setDoc } = await import('firebase/firestore');
+        await setDoc(doc(db, 'users', user.uid), {
+          habits,
+          journal,
+          journalSettings,
+          appSettings,
+          lastBackup: new Date().toISOString()
+        }, { merge: true });
+      } catch (error) {
+        console.error('Failed to backup data:', error);
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        backupData();
+      }
+    };
+    const handleBeforeUnload = () => {
+      backupData();
+    };
+
+    window.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    return () => {
+      window.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [user, habits, journal, journalSettings, appSettings]);
 
   const [darkMode, setDarkMode] = useState<boolean>(() => {
     const saved = localStorage.getItem('habitflow_darkmode');
@@ -344,7 +410,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AppContext.Provider value={{
-      habits, journal, journalSettings, appSettings, currentPage, setCurrentPage, activeHabitId, setActiveHabitId,
+      habits, journal, journalSettings, appSettings, currentPage, setCurrentPage, activeHabitId, setActiveHabitId, user,
       updateJournalSettings, updateAppSettings,
       addHabit, updateHabit, deleteHabit, toggleHabitDate, updateHabitProgress,
       addJournalEntry, updateJournalEntry, deleteJournalEntry,

@@ -268,7 +268,7 @@ export function AnalyticsPage() {
     <div className="pb-24 pt-8 px-4">
       <div className="max-w-md mx-auto">
         <header className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Analytics</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white page-header-title">Analytics</h1>
         </header>
 
         <div className="mb-6 flex gap-2 overflow-x-auto pb-2 scrollbar-none">
