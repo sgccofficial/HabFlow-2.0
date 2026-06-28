@@ -141,7 +141,7 @@ async function processNotifications() {
 
         if (r.time === currentTimeStr && r.lastSentDay !== todayStr && isTargetDay) {
           try {
-            await webpush.sendNotification(s.sub, JSON.stringify({ title: "Habit Reminder", body: `Time to work on your habit: ${r.title}` }));
+            await webpush.sendNotification(s.sub, JSON.stringify({ title: "Daily Reminder", body: `It's time to work on ${r.title}...` }));
           } catch(e) {
             console.error('Push failed for reminder', e);
           }

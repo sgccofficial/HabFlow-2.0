@@ -13,7 +13,7 @@ import { AnalyticsPage } from './components/AnalyticsPage';
 import { formatDate, cn } from './lib/utils';
 import { Moon, Sun, Palette, X, User, LogOut, Check } from 'lucide-react';
 import { BACKGROUND_COLORS, BACKGROUND_TEXTURES } from './lib/constants';
-import { auth, signInWithRedirect, googleProvider, signOut } from './lib/firebase';
+import { auth, signInWithPopup, googleProvider, signOut } from './lib/firebase';
 import { updateProfile, updateEmail, deleteUser, verifyBeforeUpdateEmail } from 'firebase/auth';
 
 import { ImageCropper } from './components/ImageCropper';
@@ -302,7 +302,12 @@ function AppContent() {
             </div>
           ) : (
             <button 
-              onClick={() => signInWithRedirect(auth, googleProvider)}
+              onClick={() => {
+                signInWithPopup(auth, googleProvider).catch((error: any) => {
+                  console.error('Sign-in error:', error);
+                  alert(`Sign-in failed: ${error.message}\nMake sure your app's URL is added to the Authorized Domains in the Firebase Console (Authentication > Settings > Authorized domains).`);
+                });
+              }}
               className="pointer-events-auto flex items-center gap-2 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow transition-colors text-sm font-medium h-10"
             >
               <User className="w-4 h-4" /> Sign In

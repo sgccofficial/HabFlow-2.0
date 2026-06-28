@@ -229,23 +229,6 @@ export function TimerPage() {
       osc.stop(ctx.currentTime + 0.5);
     } catch(e) {}
     
-    try {
-      if ('Notification' in window && Notification.permission === 'granted') {
-        navigator.serviceWorker.ready.then(reg => {
-          reg.showNotification('Time\'s Up!', {
-            body: `Focus session completed.`,
-            icon: '/icon.png'
-          });
-        }).catch(e => {
-          new Notification('Time\'s Up!', {
-            body: `Focus session completed.`,
-          });
-        });
-      }
-    } catch (e) {
-      console.warn("Notification error:", e);
-    }
-
     setCompletedModalOpen(true);
   };
 
@@ -276,13 +259,13 @@ export function TimerPage() {
     try {
       if ('Notification' in window && Notification.permission === 'granted') {
         navigator.serviceWorker.ready.then(reg => {
-          reg.showNotification(title, {
-            body: `Focus session started for ${timeString}.`,
+          reg.showNotification('Timer Started', {
+            body: `${title}'s timer started for ${timeString}.`,
             icon: '/icon.png'
           });
         }).catch(e => {
-          new Notification(title, {
-            body: `Focus session started for ${timeString}.`,
+          new Notification('Timer Started', {
+            body: `${title}'s timer started for ${timeString}.`,
           });
         });
       } else if ('Notification' in window && Notification.permission !== 'denied') {

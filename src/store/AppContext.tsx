@@ -238,8 +238,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       .map(h => ({ title: h.name, time: h.reminderTime, lastSentDay: null, targetDays: h.targetDays }));
 
     const timerObj = {
-      title,
-      body: "Time is up for your focus session!",
+      title: "Time's Up !!",
+      body: `You should have completed ${title} by now 😉`,
       time: Date.now() + (durationSecs * 1000),
       sent: false
     };
