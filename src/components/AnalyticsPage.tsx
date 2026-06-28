@@ -2,13 +2,11 @@ import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../store/AppContext';
 import { format, subDays, eachDayOfInterval, parseISO, getDay, isSameDay, startOfWeek, endOfWeek, isAfter, isBefore, isToday } from 'date-fns';
 import { calculateStreak, cn } from '../lib/utils';
-import { TrendingUp, Award, CalendarDays, Activity, Share2 } from 'lucide-react';
-import { ShareModal } from './ShareModal';
+import { TrendingUp, Award, CalendarDays, Activity } from 'lucide-react';
 
 export function AnalyticsPage() {
   const { habits, journal, activeHabitId, setActiveHabitId } = useAppContext();
   const [selectedHabitId, setSelectedHabitId] = useState<string>(activeHabitId || 'all');
-  const [showShareModal, setShowShareModal] = useState(false);
 
   // Sync with activeHabitId if it changes from outside
   React.useEffect(() => {
@@ -363,31 +361,7 @@ export function AnalyticsPage() {
             </div>
           </div>
         ) : null}
-
-        {/* Action Row */}
-        <div className="flex justify-end mt-8">
-          <button
-            onClick={() => setShowShareModal(true)}
-            className="flex items-center gap-2 text-sm font-medium text-indigo-600 bg-indigo-50 dark:bg-indigo-500/10 dark:text-indigo-400 px-4 py-2 rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-colors w-full justify-center"
-          >
-            <Share2 className="w-4 h-4" />
-            Share Milestone
-          </button>
-        </div>
       </div>
-      
-      {showShareModal && (
-        <ShareModal 
-          habit={selectedHabit}
-          streak={habitAnalytics?.currentStreak}
-          longestStreak={habitAnalytics?.longestStreak}
-          overallStats={selectedHabit ? undefined : { 
-            completions: heatmapData.reduce((acc, val) => acc + val.count, 0),
-            active: habits.length
-          }}
-          onClose={() => setShowShareModal(false)}
-        />
-      )}
     </div>
   );
 }

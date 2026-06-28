@@ -210,7 +210,11 @@ export function TimerPage() {
 
   const handleComplete = () => {
     setIsRunning(false);
-    if ('vibrate' in navigator) navigator.vibrate([200, 100, 200]);
+    try {
+      if ('vibrate' in navigator) navigator.vibrate([200, 100, 200]);
+    } catch (e) {
+      console.warn("Vibrate error:", e);
+    }
     
     // Play sound if possible
     try {
@@ -329,7 +333,7 @@ export function TimerPage() {
   }, [activeHabitId, isRunning, swIsRunning, habits]);
 
   const progress = mode === 'countdown' 
-    ? ((durationSecs - remainingSecs) / durationSecs) * 100
+    ? (durationSecs > 0 ? ((durationSecs - remainingSecs) / durationSecs) * 100 : 0)
     : (swTime % 60000) / 60000 * 100; // Loop every minute
 
   const handleDone = () => {

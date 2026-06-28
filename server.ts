@@ -80,12 +80,12 @@ app.post('/api/sync-tasks', async (req, res) => {
     const docId = getDocId(subscription.endpoint);
     const docRef = db.collection('subscriptions').doc(docId);
     
-    await docRef.set({
-      sub: subscription,
-      activeTimers: activeTimers || [],
-      dailyReminders: dailyReminders || [],
-      timezoneOffset: timezoneOffset || 0
-    }, { merge: true });
+    const updateData: any = { sub: subscription };
+    if (activeTimers !== undefined) updateData.activeTimers = activeTimers;
+    if (dailyReminders !== undefined) updateData.dailyReminders = dailyReminders;
+    if (timezoneOffset !== undefined) updateData.timezoneOffset = timezoneOffset;
+    
+    await docRef.set(updateData, { merge: true });
     
     res.status(200).json({});
   } catch (err) {

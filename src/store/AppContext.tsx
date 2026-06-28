@@ -220,7 +220,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           subscription: subscription,
-          activeTimers: [], // Will be handled dynamically, but we clear static backend list if empty
           dailyReminders,
           timezoneOffset: new Date().getTimezoneOffset()
         })
