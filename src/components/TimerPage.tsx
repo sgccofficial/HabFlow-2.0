@@ -3,6 +3,7 @@ import { useAppContext } from '../store/AppContext';
 import { Play, Pause, Square, RefreshCcw, Bell, Flag } from 'lucide-react';
 import { cn, formatDate } from '../lib/utils';
 import { Habit } from '../types';
+import { getIcon } from './HabitCard';
 
 export function formatTime(secs: number, forceHours: boolean = true) {
   const h = Math.floor(secs / 3600);
@@ -262,16 +263,26 @@ export function TimerPage() {
     const title = selectedHabit ? selectedHabit.name : "Focus Session";
     setServerTimer(durationSecs, title);
     
+    // Format duration string
+    const hrs = Math.floor(durationSecs / 3600);
+    const mins = Math.floor((durationSecs % 3600) / 60);
+    const secs = durationSecs % 60;
+    let timeString = '';
+    if (hrs > 0) timeString += `${hrs} hr `;
+    if (mins > 0) timeString += `${mins} min `;
+    if (secs > 0 || timeString === '') timeString += `${secs} sec`;
+    timeString = timeString.trim();
+    
     try {
       if ('Notification' in window && Notification.permission === 'granted') {
         navigator.serviceWorker.ready.then(reg => {
-          reg.showNotification('Timer Started', {
-            body: `Focus session started for ${Math.floor(durationSecs / 60)} minutes.`,
+          reg.showNotification(title, {
+            body: `Focus session started for ${timeString}.`,
             icon: '/icon.png'
           });
         }).catch(e => {
-          new Notification('Timer Started', {
-            body: `Focus session started for ${Math.floor(durationSecs / 60)} minutes.`,
+          new Notification(title, {
+            body: `Focus session started for ${timeString}.`,
           });
         });
       } else if ('Notification' in window && Notification.permission !== 'denied') {
@@ -362,16 +373,27 @@ export function TimerPage() {
 
         <div className="bg-white dark:bg-gray-900 rounded-3xl p-7 shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col items-center">
           
-          <select 
-            value={activeHabitId || ''} 
-            onChange={e => setActiveHabitId(e.target.value || null)}
-            className="w-full mb-4 p-3 bg-gray-50 dark:bg-gray-800 border-none rounded-xl text-gray-900 dark:text-white font-medium focus:ring-2 focus:ring-indigo-500 text-sm"
-          >
-            <option value="">No habit selected</option>
-            {habits.map(h => (
-              <option key={h.id} value={h.id}>{h.name}</option>
-            ))}
-          </select>
+          {!isRunning && !swIsRunning ? (
+            <select 
+              value={activeHabitId || ''} 
+              onChange={e => setActiveHabitId(e.target.value || null)}
+              className="w-full mb-4 p-3 bg-gray-50 dark:bg-gray-800 border-none rounded-xl text-gray-900 dark:text-white font-medium focus:ring-2 focus:ring-indigo-500 text-sm"
+            >
+              <option value="">No habit selected</option>
+              {habits.map(h => (
+                <option key={h.id} value={h.id}>{h.name}</option>
+              ))}
+            </select>
+          ) : selectedHabit ? (
+            <div className="flex items-center gap-2 mb-4 bg-gray-50 dark:bg-gray-800 px-4 py-2 rounded-xl text-gray-900 dark:text-white font-medium text-sm">
+              <span className="flex items-center justify-center w-6 h-6 rounded-md" style={{ color: selectedHabit.color }}>
+                {getIcon(selectedHabit.icon)}
+              </span>
+              <span>{selectedHabit.name}</span>
+            </div>
+          ) : (
+             <div className="mb-4 text-gray-500 text-sm font-medium">Focus Session</div>
+          )}
 
           <div className="flex gap-2 p-1 bg-gray-100 dark:bg-gray-800 rounded-lg mb-6">
             <button 

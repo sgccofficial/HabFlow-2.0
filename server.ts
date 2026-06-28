@@ -3,20 +3,25 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import webpush from "web-push";
 import fs from "fs";
-import { initializeApp, applicationDefault, cert } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
 import crypto from 'crypto';
 
-// Initialize Firebase Admin
-let db: any = null;
-if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
-  initializeApp({
-    credential: cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON)),
-  });
-  db = getFirestore();
-} else {
-  console.warn("FIREBASE_SERVICE_ACCOUNT_JSON is missing. Push notifications background worker and sync endpoints are disabled.");
-}
+// Use a local file for subscriptions if Firebase Admin is not configured
+const SUBSCRIPTIONS_FILE = 'subscriptions.json';
+
+const getSubscriptions = () => {
+  if (fs.existsSync(SUBSCRIPTIONS_FILE)) {
+    try {
+      return JSON.parse(fs.readFileSync(SUBSCRIPTIONS_FILE, 'utf-8'));
+    } catch (e) {
+      return {};
+    }
+  }
+  return {};
+};
+
+const saveSubscriptions = (subs: any) => {
+  fs.writeFileSync(SUBSCRIPTIONS_FILE, JSON.stringify(subs, null, 2));
+};
 
 const app = express();
 const PORT = 3000;
@@ -50,20 +55,18 @@ app.get('/api/vapidPublicKey', (req, res) => {
 });
 
 app.post('/api/subscribe', async (req, res) => {
-  if (!db) {
-    return res.status(503).json({ error: 'Push notifications are disabled (missing credentials)' });
-  }
   try {
     const { subscription } = req.body;
     const docId = getDocId(subscription.endpoint);
-    const docRef = db.collection('subscriptions').doc(docId);
     
-    const doc = await docRef.get();
-    if (!doc.exists) {
-      await docRef.set({ sub: subscription, activeTimers: [], dailyReminders: [] });
+    const subs = getSubscriptions();
+    if (!subs[docId]) {
+      subs[docId] = { sub: subscription, activeTimers: [], dailyReminders: [] };
     } else {
-      await docRef.update({ sub: subscription });
+      subs[docId].sub = subscription;
     }
+    saveSubscriptions(subs);
+    
     res.status(201).json({});
   } catch (err) {
     console.error(err);
@@ -72,20 +75,22 @@ app.post('/api/subscribe', async (req, res) => {
 });
 
 app.post('/api/sync-tasks', async (req, res) => {
-  if (!db) {
-    return res.status(503).json({ error: 'Push notifications are disabled (missing credentials)' });
-  }
   try {
     const { subscription, activeTimers, dailyReminders, timezoneOffset } = req.body;
     const docId = getDocId(subscription.endpoint);
-    const docRef = db.collection('subscriptions').doc(docId);
     
-    const updateData: any = { sub: subscription };
-    if (activeTimers !== undefined) updateData.activeTimers = activeTimers;
-    if (dailyReminders !== undefined) updateData.dailyReminders = dailyReminders;
-    if (timezoneOffset !== undefined) updateData.timezoneOffset = timezoneOffset;
+    const subs = getSubscriptions();
+    if (!subs[docId]) {
+      subs[docId] = { sub: subscription, activeTimers: [], dailyReminders: [] };
+    } else {
+      subs[docId].sub = subscription;
+    }
     
-    await docRef.set(updateData, { merge: true });
+    if (activeTimers !== undefined) subs[docId].activeTimers = activeTimers;
+    if (dailyReminders !== undefined) subs[docId].dailyReminders = dailyReminders;
+    if (timezoneOffset !== undefined) subs[docId].timezoneOffset = timezoneOffset;
+    
+    saveSubscriptions(subs);
     
     res.status(200).json({});
   } catch (err) {
@@ -96,79 +101,59 @@ app.post('/api/sync-tasks', async (req, res) => {
 
 // Process Notifications Function
 async function processNotifications() {
-  if (!db) return;
+  const subs = getSubscriptions();
   const now = Date.now();
-  const today = new Date();
-  const currentTimeStr = `${String(today.getHours()).padStart(2, '0')}:${String(today.getMinutes()).padStart(2, '0')}`;
-  
-  try {
-    const snapshot = await db.collection('subscriptions').get();
-    
-    const batch = db.batch();
-    let batchCount = 0;
 
-    for (const doc of snapshot.docs) {
-      const data = doc.data();
-      let modified = false;
-      let s = data;
+  for (const docId of Object.keys(subs)) {
+    const s = subs[docId];
+    let modified = false;
 
-      // Process Timers
-      if (s.activeTimers && s.activeTimers.length > 0) {
-        let sentAny = false;
-        const newTimers = [];
-        for (const timer of s.activeTimers) {
-          if (!timer.sent && now >= timer.time) {
-            try {
-              await webpush.sendNotification(s.sub, JSON.stringify({ title: timer.title, body: timer.body }));
-            } catch (e) {
-              console.error('Push failed for timer', e);
-            }
-            sentAny = true;
-          } else if (!timer.sent) {
-            newTimers.push(timer); // keep if not sent
+    // Process Timers
+    if (s.activeTimers && s.activeTimers.length > 0) {
+      let sentAny = false;
+      const newTimers = [];
+      for (const timer of s.activeTimers) {
+        if (!timer.sent && now >= timer.time) {
+          try {
+            await webpush.sendNotification(s.sub, JSON.stringify({ title: timer.title, body: timer.body }));
+          } catch (e) {
+            console.error('Push failed for timer', e);
           }
+          sentAny = true;
+        } else if (!timer.sent) {
+          newTimers.push(timer); // keep if not sent
         }
-        if (sentAny || newTimers.length !== s.activeTimers.length) {
-          s.activeTimers = newTimers;
+      }
+      if (sentAny || newTimers.length !== s.activeTimers.length) {
+        s.activeTimers = newTimers;
+        modified = true;
+      }
+    }
+
+    // Process Reminders
+    if (s.dailyReminders && s.dailyReminders.length > 0) {
+      for (const r of s.dailyReminders) {
+        const userTime = new Date(now - ((s.timezoneOffset || 0) * 60000));
+        const todayStr = userTime.toISOString().split('T')[0];
+        const currentDayOfWeek = userTime.getUTCDay();
+        const currentTimeStr = `${String(userTime.getUTCHours()).padStart(2, '0')}:${String(userTime.getUTCMinutes()).padStart(2, '0')}`;
+        const isTargetDay = r.targetDays ? r.targetDays.includes(currentDayOfWeek) : true;
+
+        if (r.time === currentTimeStr && r.lastSentDay !== todayStr && isTargetDay) {
+          try {
+            await webpush.sendNotification(s.sub, JSON.stringify({ title: "Habit Reminder", body: `Time to work on your habit: ${r.title}` }));
+          } catch(e) {
+            console.error('Push failed for reminder', e);
+          }
+          r.lastSentDay = todayStr;
           modified = true;
         }
       }
-
-      // Process Reminders
-      if (s.dailyReminders && s.dailyReminders.length > 0) {
-        for (const r of s.dailyReminders) {
-          const userTime = new Date(now - ((s.timezoneOffset || 0) * 60000));
-          const todayStr = userTime.toISOString().split('T')[0];
-          const currentDayOfWeek = userTime.getUTCDay();
-          const currentTimeStr = `${String(userTime.getUTCHours()).padStart(2, '0')}:${String(userTime.getUTCMinutes()).padStart(2, '0')}`;
-          const isTargetDay = r.targetDays ? r.targetDays.includes(currentDayOfWeek) : true;
-
-          if (r.time === currentTimeStr && r.lastSentDay !== todayStr && isTargetDay) {
-            try {
-              await webpush.sendNotification(s.sub, JSON.stringify({ title: "Habit Reminder", body: `Time to work on your habit: ${r.title}` }));
-            } catch(e) {
-              console.error('Push failed for reminder', e);
-            }
-            r.lastSentDay = todayStr;
-            modified = true;
-          }
-        }
-      }
-
-      if (modified) {
-        batch.update(doc.ref, { 
-          activeTimers: s.activeTimers, 
-          dailyReminders: s.dailyReminders 
-        });
-        batchCount++;
-      }
     }
-    
-    if (batchCount > 0) {
-      await batch.commit();
+
+    if (modified) {
+      saveSubscriptions(subs);
     }
-  } catch (err) {
-    console.error('Error processing notifications:', err);
   }
 }
 
