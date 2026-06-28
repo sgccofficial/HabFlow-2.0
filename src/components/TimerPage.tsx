@@ -224,10 +224,21 @@ export function TimerPage() {
       osc.stop(ctx.currentTime + 0.5);
     } catch(e) {}
     
-    if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification('Time\'s Up!', {
-        body: `Focus session completed.`,
-      });
+    try {
+      if ('Notification' in window && Notification.permission === 'granted') {
+        navigator.serviceWorker.ready.then(reg => {
+          reg.showNotification('Time\'s Up!', {
+            body: `Focus session completed.`,
+            icon: '/icon.png'
+          });
+        }).catch(e => {
+          new Notification('Time\'s Up!', {
+            body: `Focus session completed.`,
+          });
+        });
+      }
+    } catch (e) {
+      console.warn("Notification error:", e);
     }
 
     setCompletedModalOpen(true);
@@ -247,12 +258,23 @@ export function TimerPage() {
     const title = selectedHabit ? selectedHabit.name : "Focus Session";
     setServerTimer(durationSecs, title);
     
-    if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification('Timer Started', {
-        body: `Focus session started for ${Math.floor(durationSecs / 60)} minutes.`,
-      });
-    } else if ('Notification' in window && Notification.permission !== 'denied') {
-      Notification.requestPermission();
+    try {
+      if ('Notification' in window && Notification.permission === 'granted') {
+        navigator.serviceWorker.ready.then(reg => {
+          reg.showNotification('Timer Started', {
+            body: `Focus session started for ${Math.floor(durationSecs / 60)} minutes.`,
+            icon: '/icon.png'
+          });
+        }).catch(e => {
+          new Notification('Timer Started', {
+            body: `Focus session started for ${Math.floor(durationSecs / 60)} minutes.`,
+          });
+        });
+      } else if ('Notification' in window && Notification.permission !== 'denied') {
+        Notification.requestPermission();
+      }
+    } catch (e) {
+      console.warn("Notification error:", e);
     }
   };
   

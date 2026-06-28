@@ -72,18 +72,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (user && habits.length > 0) {
-      import('../lib/social').then(({ syncSharedHabit }) => {
-        habits.forEach(habit => {
-          if (habit.visibility && habit.visibility !== 'private') {
-            syncSharedHabit(habit);
-          }
-        });
-      });
-    }
-  }, [habits, user]);
-
-  useEffect(() => {
     if (!user) return;
     const backupData = async () => {
       try {
@@ -146,6 +134,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const updateJournalSettings = (habitId: string, settings: JournalSettings) => {
     setJournalSettings(prev => ({ ...prev, [habitId]: { ...prev[habitId], ...settings } }));
   };
+
+  useEffect(() => {
+    if (swSubscription) {
+      syncNotificationSettings(habits, swSubscription);
+    }
+  }, [habits, swSubscription]);
 
   const updateAppSettings = (settings: JournalSettings) => {
     setAppSettings(prev => ({ ...prev, ...settings }));
@@ -227,7 +221,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         body: JSON.stringify({ 
           subscription: subscription,
           activeTimers: [], // Will be handled dynamically, but we clear static backend list if empty
-          dailyReminders 
+          dailyReminders,
+          timezoneOffset: new Date().getTimezoneOffset()
         })
       });
     } catch (e) {
@@ -257,7 +252,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         body: JSON.stringify({ 
           subscription: swSubscription,
           activeTimers: [timerObj],
-          dailyReminders 
+          dailyReminders,
+          timezoneOffset: new Date().getTimezoneOffset()
         })
       });
     } catch (e) {
@@ -278,7 +274,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         body: JSON.stringify({ 
           subscription: swSubscription,
           activeTimers: [],
-          dailyReminders 
+          dailyReminders,
+          timezoneOffset: new Date().getTimezoneOffset()
         })
       });
     } catch (e) {}

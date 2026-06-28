@@ -37,8 +37,6 @@ export function EditHabitModal({ habit, onClose }: EditModalProps) {
   const [durationMinutes, setDurationMinutes] = useState(() => Math.floor((initialDuration % 3600) / 60) || (initialDuration === 0 ? 15 : 0));
   const [durationSeconds, setDurationSeconds] = useState(() => initialDuration % 60);
 
-  const [visibility, setVisibility] = useState<Habit['visibility']>(habit.visibility || 'private');
-  
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const handleSave = () => {
@@ -73,8 +71,7 @@ export function EditHabitModal({ habit, onClose }: EditModalProps) {
       durationUnit: fallbackDurationUnit,
       targetDays: finalTargetDays,
       dailyCompletions: finalDailyCompletions,
-      durationGoal: finalDurationGoal,
-      visibility
+      durationGoal: finalDurationGoal
     });
     onClose();
   };
@@ -334,19 +331,6 @@ export function EditHabitModal({ habit, onClose }: EditModalProps) {
                 className="w-full px-3 py-2 border dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white"
               />
             )}
-          </div>
-
-          <div>
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 block mb-2">Privacy & Social Sharing</label>
-            <select
-              value={visibility}
-              onChange={(e) => setVisibility(e.target.value as any)}
-              className="w-full px-3 py-2 border dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white"
-            >
-              <option value="private">Private (Only me)</option>
-              <option value="friends">Friends (All my friends)</option>
-            </select>
-            <p className="text-xs text-gray-500 mt-1">If you choose Friends, they will see your streak and daily completions.</p>
           </div>
         </div>
 

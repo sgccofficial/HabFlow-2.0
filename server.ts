@@ -76,14 +76,15 @@ app.post('/api/sync-tasks', async (req, res) => {
     return res.status(503).json({ error: 'Push notifications are disabled (missing credentials)' });
   }
   try {
-    const { subscription, activeTimers, dailyReminders } = req.body;
+    const { subscription, activeTimers, dailyReminders, timezoneOffset } = req.body;
     const docId = getDocId(subscription.endpoint);
     const docRef = db.collection('subscriptions').doc(docId);
     
     await docRef.set({
       sub: subscription,
       activeTimers: activeTimers || [],
-      dailyReminders: dailyReminders || []
+      dailyReminders: dailyReminders || [],
+      timezoneOffset: timezoneOffset || 0
     }, { merge: true });
     
     res.status(200).json({});
@@ -136,8 +137,10 @@ async function processNotifications() {
       // Process Reminders
       if (s.dailyReminders && s.dailyReminders.length > 0) {
         for (const r of s.dailyReminders) {
-          const todayStr = today.toISOString().split('T')[0];
-          const currentDayOfWeek = today.getDay();
+          const userTime = new Date(now - ((s.timezoneOffset || 0) * 60000));
+          const todayStr = userTime.toISOString().split('T')[0];
+          const currentDayOfWeek = userTime.getUTCDay();
+          const currentTimeStr = `${String(userTime.getUTCHours()).padStart(2, '0')}:${String(userTime.getUTCMinutes()).padStart(2, '0')}`;
           const isTargetDay = r.targetDays ? r.targetDays.includes(currentDayOfWeek) : true;
 
           if (r.time === currentTimeStr && r.lastSentDay !== todayStr && isTargetDay) {
