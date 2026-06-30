@@ -60,8 +60,8 @@ export function ShareMilestoneModal({ habit, overallStats, onClose }: ShareMiles
 
   const shareTitle = habit ? `${habit.name} Milestone` : `${shortName}'s Habits Journey`;
   const shareText = habit 
-    ? `I've built ${habit.name} for ${streak} days in a row!`
-    : `I've reached ${overallStats?.totalCompletions} completions across ${overallStats?.activeHabits} active habits!`;
+    ? `I've built ${habit.name} for ${streak} days with a consistency rate of ${completionRate}%!`
+    : `I've reached ${overallStats?.totalCompletions} completions across ${overallStats?.activeHabits} active tasks with a consistency rate of ${completionRate}%!`;
   const shareFileName = habit
     ? `milestone-${habit.name.replace(/\s+/g, '-').toLowerCase()}.png`
     : `milestone-overall.png`;
@@ -184,9 +184,31 @@ export function ShareMilestoneModal({ habit, overallStats, onClose }: ShareMiles
                   </h2>
                   <div className="w-24 h-24 rounded-full flex items-center justify-center mb-6 shadow-xl bg-white/20 backdrop-blur-md text-white border border-white/20 overflow-hidden">
                     {user?.photoURL ? (
-                      <img src={user.photoURL.startsWith('data:') ? user.photoURL : `${user.photoURL.replace(/=s\d+-c/i, '=s400-c')}${user.photoURL.includes('?') ? '&' : '?'}t=${Date.now()}`} alt="Profile" className="w-full h-full object-cover" crossOrigin={user.photoURL.startsWith('data:') ? undefined : "anonymous"} />
+                      <>
+                        <img 
+                          src={user.photoURL.startsWith('data:') ? user.photoURL : `${user.photoURL.replace(/=s\d+-c/i, '=s400-c')}${user.photoURL.includes('?') ? '&' : '?'}t=${Date.now()}`} 
+                          alt="Profile" 
+                          className="w-full h-full object-cover" 
+                          crossOrigin={user.photoURL.startsWith('data:') ? undefined : "anonymous"} 
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                            if (target.nextElementSibling) {
+                              (target.nextElementSibling as HTMLElement).style.display = 'flex';
+                            }
+                          }}
+                        />
+                        <div 
+                          className="w-full h-full bg-white/20 items-center justify-center text-white" 
+                          style={{ display: 'none' }}
+                        >
+                          <User className="w-10 h-10" />
+                        </div>
+                      </>
                     ) : (
-                      <img src={`https://ui-avatars.com/api/?name=${user?.displayName || 'User'}&size=400`} alt="Profile" className="w-full h-full object-cover" crossOrigin="anonymous" />
+                      <div className="w-full h-full bg-white/20 flex items-center justify-center text-white">
+                        <User className="w-10 h-10" />
+                      </div>
                     )}
                   </div>
                   <div className="flex gap-2 w-full px-2">

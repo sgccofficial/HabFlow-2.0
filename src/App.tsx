@@ -198,11 +198,13 @@ function AppContent() {
     const interval = setInterval(() => {
       const now = new Date();
       const todayStr = formatDate(now);
+      const currentDayOfWeek = now.getDay();
       const currentTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
       habits.forEach(habit => {
+        const isTargetDay = habit.targetDays ? habit.targetDays.includes(currentDayOfWeek) : true;
         const reminderId = `${habit.id}-${todayStr}`;
-        if (!checkedReminders.current.has(reminderId)) {
+        if (isTargetDay && !checkedReminders.current.has(reminderId)) {
           if (!habit.dates.includes(todayStr) && habit.reminderTime === currentTimeStr) {
             // Trigger local notification
             if ('Notification' in window && Notification.permission === 'granted') {
@@ -283,29 +285,55 @@ function AppContent() {
             <div className="relative pointer-events-auto flex items-center">
               <button 
                 onClick={toggleProfileMenu}
-                className="w-10 h-10 rounded-full overflow-hidden border border-gray-200 dark:border-gray-800 shadow"
+                className="w-10 h-10 rounded-full overflow-hidden border border-gray-200 dark:border-gray-800 shadow flex items-center justify-center bg-gray-100 dark:bg-gray-800"
               >
-                <img 
-                  src={user.photoURL ? user.photoURL.replace(/=s\d+-c/i, '=s400-c') : `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName || 'User')}&size=400`} 
-                  alt="Profile" 
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName || 'User')}&size=400`;
-                  }}
-                />
+                {user.photoURL ? (
+                  <img 
+                    src={user.photoURL.replace(/=s\d+-c/i, '=s400-c')} 
+                    alt="Profile" 
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.style.display = 'none';
+                      if (target.nextElementSibling) {
+                        (target.nextElementSibling as HTMLElement).style.display = 'flex';
+                      }
+                    }}
+                  />
+                ) : null}
+                <div 
+                  className="w-full h-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 items-center justify-center" 
+                  style={{ display: user.photoURL ? 'none' : 'flex' }}
+                >
+                  <User className="w-5 h-5" />
+                </div>
               </button>
               
               {showProfileMenu && (
                 <div onClick={(e) => e.stopPropagation()} className="absolute top-12 right-0 w-64 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden z-[70] text-gray-900 dark:text-white">
                   <div className="p-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex items-center gap-3">
-                    <img 
-                      src={user.photoURL ? user.photoURL.replace(/=s\d+-c/i, '=s400-c') : `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName || 'User')}&size=400`} 
-                      alt="Profile" 
-                      className="w-10 h-10 rounded-full object-cover border border-gray-200 dark:border-gray-700 shadow-sm"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName || 'User')}&size=400`;
-                      }}
-                    />
+                    <div className="w-10 h-10 rounded-full overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm flex shrink-0 items-center justify-center bg-gray-100 dark:bg-gray-800">
+                      {user.photoURL ? (
+                        <img 
+                          src={user.photoURL.replace(/=s\d+-c/i, '=s400-c')} 
+                          alt="Profile" 
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                            if (target.nextElementSibling) {
+                              (target.nextElementSibling as HTMLElement).style.display = 'flex';
+                            }
+                          }}
+                        />
+                      ) : null}
+                      <div 
+                        className="w-full h-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 items-center justify-center" 
+                        style={{ display: user.photoURL ? 'none' : 'flex' }}
+                      >
+                        <User className="w-5 h-5" />
+                      </div>
+                    </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-bold truncate">{user.displayName}</p>
                       <p className="text-xs text-gray-500 truncate mt-0.5">{user.email}</p>
@@ -361,7 +389,7 @@ function AppContent() {
                        alert(`Sign-in failed: ${redirectError.message}`);
                     });
                   } else {
-                    alert(`Sign-in failed: ${error.message}\nMake sure your app's URL is added to the Authorized Domains in the Firebase Console.`);
+                    alert(`Sign-in failed: ${error.message}\n\nPlease add these URLs to Authorized Domains in Firebase Console (Authentication > Settings > Authorized domains):\n1. ais-dev-4xi2zilhvk5rqf7rk3rqxs-1030600014189.asia-southeast1.run.app\n2. ais-pre-4xi2zilhvk5rqf7rk3rqxs-1030600014189.asia-southeast1.run.app`);
                   }
                 });
               }}
