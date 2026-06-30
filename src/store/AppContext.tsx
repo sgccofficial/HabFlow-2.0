@@ -52,7 +52,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return saved ? JSON.parse(saved) : {};
   });
 
-  const [currentPage, setCurrentPage] = useState<Page>('habits');
+  const [currentPage, setCurrentPage] = useState<Page>(() => {
+    const saved = localStorage.getItem('habitflow_current_page');
+    return (saved as Page) || 'habits';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('habitflow_current_page', currentPage);
+  }, [currentPage]);
+
   const [activeHabitId, setActiveHabitId] = useState<string | null>(null);
   const [user, setUser] = useState<any | null>(null);
 

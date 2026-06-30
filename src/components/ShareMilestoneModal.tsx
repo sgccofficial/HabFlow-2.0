@@ -48,13 +48,13 @@ export function ShareMilestoneModal({ habit, overallStats, onClose }: ShareMiles
     });
   };
 
-  let shortName = 'My';
+  let shortName = 'User';
   if (user?.displayName) {
     const match = user.displayName.match(/^[a-zA-Z]+/);
     if (match && match[0].length > 0) {
       shortName = match[0];
     } else {
-      shortName = user.displayName.split(' ')[0] || 'My';
+      shortName = user.displayName.split(' ')[0] || 'User';
     }
   }
 
