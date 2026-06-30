@@ -39,7 +39,7 @@ function AppContent() {
     // Handle redirect result
     getRedirectResult(auth).catch((error) => {
       console.error('Redirect sign-in error:', error);
-      alert(`Sign-in failed: ${error.message}`);
+      alert(`Sign-in failed: ${error.message}\n\nFirebase domain changes can take up to 5 minutes to propagate. Ensure you added exactly these domain names (without https://):\n1. ais-dev-4xi2zilhvk5rqf7rk3rqxs-1030600014189.asia-southeast1.run.app\n2. ais-pre-4xi2zilhvk5rqf7rk3rqxs-1030600014189.asia-southeast1.run.app`);
     });
 
     return () => document.removeEventListener('click', handleDocumentClick);
@@ -386,10 +386,10 @@ function AppContent() {
                     // Fallback for mobile/external browsers
                     signInWithRedirect(auth, googleProvider).catch((redirectError) => {
                        console.error('Redirect sign-in error:', redirectError);
-                       alert(`Sign-in failed: ${redirectError.message}`);
+                       alert(`Sign-in failed: ${redirectError.message}\n\nFirebase domain changes can take up to 5 minutes to propagate.\nEnsure you added exactly these domain names (without https://):\n1. ais-dev-4xi2zilhvk5rqf7rk3rqxs-1030600014189.asia-southeast1.run.app\n2. ais-pre-4xi2zilhvk5rqf7rk3rqxs-1030600014189.asia-southeast1.run.app`);
                     });
                   } else {
-                    alert(`Sign-in failed: ${error.message}\n\nPlease add these URLs to Authorized Domains in Firebase Console (Authentication > Settings > Authorized domains):\n1. ais-dev-4xi2zilhvk5rqf7rk3rqxs-1030600014189.asia-southeast1.run.app\n2. ais-pre-4xi2zilhvk5rqf7rk3rqxs-1030600014189.asia-southeast1.run.app`);
+                    alert(`Sign-in failed: ${error.message}\n\nFirebase domain changes can take up to 5 minutes to propagate.\nEnsure you added exactly these domain names (without https://):\n1. ais-dev-4xi2zilhvk5rqf7rk3rqxs-1030600014189.asia-southeast1.run.app\n2. ais-pre-4xi2zilhvk5rqf7rk3rqxs-1030600014189.asia-southeast1.run.app`);
                   }
                 });
               }}
