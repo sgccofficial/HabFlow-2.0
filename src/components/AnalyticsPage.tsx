@@ -2,11 +2,13 @@ import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../store/AppContext';
 import { format, subDays, eachDayOfInterval, parseISO, getDay, isSameDay, startOfWeek, endOfWeek, isAfter, isBefore, isToday } from 'date-fns';
 import { calculateStreak, cn } from '../lib/utils';
-import { TrendingUp, Award, CalendarDays, Activity } from 'lucide-react';
+import { TrendingUp, Award, CalendarDays, Activity, Share2 } from 'lucide-react';
+import { ShareMilestoneModal } from './ShareMilestoneModal';
 
 export function AnalyticsPage() {
   const { habits, journal, activeHabitId, setActiveHabitId } = useAppContext();
   const [selectedHabitId, setSelectedHabitId] = useState<string>(activeHabitId || 'all');
+  const [showShareModal, setShowShareModal] = useState(false);
 
   // Sync with activeHabitId if it changes from outside
   React.useEffect(() => {
@@ -177,6 +179,24 @@ export function AnalyticsPage() {
     return { longestStreak, currentStreak, completionRate, activityOverTime };
   }, [selectedHabit, last30Days, today]);
 
+  const overallStats = useMemo(() => {
+    let totalCompletions = 0;
+    let totalPossible = 0;
+    habits.forEach(h => {
+      totalCompletions += h.dates.length;
+      const createdDate = parseISO(h.created);
+      const daysSinceCreation = Math.max(1, Math.floor((today.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+      totalPossible += daysSinceCreation;
+    });
+    
+    const consistencyRate = totalPossible > 0 ? Math.round((totalCompletions / totalPossible) * 100) : 0;
+    return {
+      totalCompletions,
+      activeHabits: habits.length,
+      consistencyRate
+    };
+  }, [habits, today]);
+
 
   const renderBlocks = (specificHabit?: any) => {
     return (
@@ -265,8 +285,8 @@ export function AnalyticsPage() {
   return (
     <div className="pb-24 pt-8 px-4">
       <div className="max-w-md mx-auto">
-        <header className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white page-header-title">Analytics</h1>
+        <header className="mb-6 p-4 rounded-2xl bg-white/40 dark:bg-black/30 backdrop-blur-md shadow-sm border border-white/20 dark:border-white/10">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Analytics</h1>
         </header>
 
         <div className="mb-6 flex gap-2 overflow-x-auto pb-2 scrollbar-none">
@@ -308,7 +328,7 @@ export function AnalyticsPage() {
               <div className="bg-white dark:bg-gray-900 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col items-center text-center">
                 <CalendarDays className="w-6 h-6 text-emerald-500 mb-2" />
                 <span className="text-2xl font-bold text-gray-900 dark:text-white">{heatmapData.reduce((acc, val) => acc + val.count, 0)}</span>
-                <span className="text-xs text-gray-500 font-medium">Total Completions</span>
+                <span className="text-xs text-gray-500 font-medium">Recent Completions</span>
               </div>
               <div className="bg-white dark:bg-gray-900 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col items-center text-center">
                 <Activity className="w-6 h-6 text-orange-500 mb-2" />
@@ -316,6 +336,20 @@ export function AnalyticsPage() {
                 <span className="text-xs text-gray-500 font-medium">Active Habits</span>
               </div>
             </div>
+
+            <button
+              onClick={() => setShowShareModal(true)}
+              className="w-full py-2.5 bg-indigo-50 dark:bg-indigo-900/20 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 text-sm font-medium rounded-xl transition-colors flex items-center justify-center gap-2 border border-indigo-100 dark:border-indigo-800/30 mt-4"
+            >
+              <Share2 className="w-4 h-4" /> Share Overview
+            </button>
+            
+            {showShareModal && (
+              <ShareMilestoneModal 
+                overallStats={overallStats} 
+                onClose={() => setShowShareModal(false)} 
+              />
+            )}
           </div>
         ) : selectedHabit && habitAnalytics ? (
           <div className="space-y-6">
@@ -342,11 +376,11 @@ export function AnalyticsPage() {
                 <span className="text-xs font-medium text-gray-500 uppercase tracking-wider block mb-1">Consistency Rate</span>
                 <span className="text-2xl font-bold text-gray-900 dark:text-white">{habitAnalytics.completionRate}%</span>
               </div>
-              <div className="w-16 h-16 rounded-full border-4 flex items-center justify-center border-indigo-100 dark:border-indigo-900/30" style={{
-                background: `conic-gradient(#4f46e5 ${habitAnalytics.completionRate}%, transparent 0)`
+              <div className="w-16 h-16 rounded-full flex items-center justify-center bg-indigo-100 dark:bg-indigo-900/30" style={{
+                backgroundImage: `conic-gradient(#4f46e5 ${habitAnalytics.completionRate}%, transparent 0)`
               }}>
-                <div className="w-12 h-12 bg-white dark:bg-gray-900 rounded-full flex items-center justify-center">
-                  <Award className="w-5 h-5 text-indigo-500" />
+                <div className="w-14 h-14 bg-white dark:bg-gray-900 rounded-full flex items-center justify-center">
+                  <Award className="w-6 h-6 text-indigo-500" />
                 </div>
               </div>
             </div>
@@ -359,6 +393,20 @@ export function AnalyticsPage() {
               </div>
               {renderBlocks(selectedHabit)}
             </div>
+
+            <button
+              onClick={() => setShowShareModal(true)}
+              className="w-full py-2.5 bg-indigo-50 dark:bg-indigo-900/20 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 text-sm font-medium rounded-xl transition-colors flex items-center justify-center gap-2 border border-indigo-100 dark:border-indigo-800/30 mt-4"
+            >
+              <Share2 className="w-4 h-4" /> Share Milestone
+            </button>
+            
+            {showShareModal && (
+              <ShareMilestoneModal 
+                habit={selectedHabit} 
+                onClose={() => setShowShareModal(false)} 
+              />
+            )}
           </div>
         ) : null}
       </div>

@@ -13,6 +13,7 @@ export interface Habit {
   targetDays?: number[]; // 0=Sun, 1=Mon... 6=Sat
   dailyCompletions?: number;
   durationGoal?: number; // in seconds
+  category?: string;
 }
 
 export interface JournalEntry {

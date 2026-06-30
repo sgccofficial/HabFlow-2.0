@@ -56,16 +56,19 @@ export async function getCroppedImg(
     Math.round(0 - safeArea / 2 + image.height * 0.5 - pixelCrop.y)
   );
 
-  // Resize to 100x100
+  // Resize to 400x400
   const finalCanvas = document.createElement('canvas');
-  finalCanvas.width = 100;
-  finalCanvas.height = 100;
+  finalCanvas.width = 400;
+  finalCanvas.height = 400;
   const finalCtx = finalCanvas.getContext('2d');
   if (finalCtx) {
-    finalCtx.drawImage(canvas, 0, 0, 100, 100);
-    return finalCanvas.toDataURL('image/jpeg', 0.5);
+    // Use better image smoothing
+    finalCtx.imageSmoothingEnabled = true;
+    finalCtx.imageSmoothingQuality = 'high';
+    finalCtx.drawImage(canvas, 0, 0, 400, 400);
+    return finalCanvas.toDataURL('image/jpeg', 0.92);
   }
 
   // Return base64 string
-  return canvas.toDataURL('image/jpeg', 0.8);
+  return canvas.toDataURL('image/jpeg', 0.92);
 }

@@ -17,6 +17,7 @@ interface AppContextType {
   addHabit: (habit: Omit<Habit, 'id' | 'created' | 'dates'>) => void;
   updateHabit: (id: string, updates: Partial<Omit<Habit, 'id' | 'created'>>) => void;
   deleteHabit: (id: string) => void;
+  reorderHabits: (newHabits: Habit[]) => void;
   toggleHabitDate: (id: string, date: string) => void;
   updateHabitProgress: (id: string, date: string, increment: number) => void;
   addJournalEntry: (entry: Omit<JournalEntry, 'id'>) => void;
@@ -109,8 +110,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const [darkMode, setDarkMode] = useState<boolean>(() => {
     const saved = localStorage.getItem('habitflow_darkmode');
-    return saved ? JSON.parse(saved) : false;
+    if (saved !== null) {
+      return JSON.parse(saved);
+    }
+    if (typeof window !== 'undefined' && window.matchMedia) {
+      return window.matchMedia('(prefers-color-scheme: dark)').matches;
+    }
+    return false;
   });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.matchMedia) {
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      const handleChange = (e: MediaQueryListEvent) => {
+        if (localStorage.getItem('habitflow_darkmode') === null) {
+          setDarkMode(e.matches);
+        }
+      };
+      mediaQuery.addEventListener('change', handleChange);
+      return () => mediaQuery.removeEventListener('change', handleChange);
+    }
+  }, []);
 
   const [swSubscription, setSwSubscription] = useState<any>(null);
 
@@ -146,7 +166,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    localStorage.setItem('habitflow_darkmode', JSON.stringify(darkMode));
     if (darkMode) {
       document.documentElement.classList.add('dark');
     } else {
@@ -211,7 +230,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         title: h.name,
         time: h.reminderTime,
         lastSentDay: null, // initial
-        targetDays: h.targetDays
+        targetDays: h.targetDays,
+        dates: h.dates
       }));
 
     try {
@@ -235,7 +255,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // We get current daily reminders
     const dailyReminders = habits
       .filter(h => h.reminderTime)
-      .map(h => ({ title: h.name, time: h.reminderTime, lastSentDay: null, targetDays: h.targetDays }));
+      .map(h => ({ title: h.name, time: h.reminderTime, lastSentDay: null, targetDays: h.targetDays, dates: h.dates }));
 
     const timerObj = {
       title: "Time's Up !!",
@@ -264,7 +284,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!swSubscription) return;
     const dailyReminders = habits
       .filter(h => h.reminderTime)
-      .map(h => ({ title: h.name, time: h.reminderTime, lastSentDay: null, targetDays: h.targetDays }));
+      .map(h => ({ title: h.name, time: h.reminderTime, lastSentDay: null, targetDays: h.targetDays, dates: h.dates }));
 
     try {
       await fetch('/api/sync-tasks', {
@@ -294,7 +314,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return outputArray;
   };
 
-  const toggleDarkMode = () => setDarkMode(!darkMode);
+  const toggleDarkMode = () => {
+    setDarkMode(prev => {
+      const newMode = !prev;
+      localStorage.setItem('habitflow_darkmode', JSON.stringify(newMode));
+      return newMode;
+    });
+  };
 
   const addHabit = (habitData: Omit<Habit, 'id' | 'created' | 'dates'>) => {
     const newHabit: Habit = {
@@ -315,6 +341,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // also clean up journal? Optional, but good practice.
     setJournal(prev => prev.filter(j => j.habitId !== id));
     if (activeHabitId === id) setActiveHabitId(null);
+  };
+
+  const reorderHabits = (newHabits: Habit[]) => {
+    setHabits(newHabits);
   };
 
   const toggleHabitDate = (id: string, date: string) => {
@@ -408,7 +438,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     <AppContext.Provider value={{
       habits, journal, journalSettings, appSettings, currentPage, setCurrentPage, activeHabitId, setActiveHabitId, user,
       updateJournalSettings, updateAppSettings,
-      addHabit, updateHabit, deleteHabit, toggleHabitDate, updateHabitProgress,
+      addHabit, updateHabit, deleteHabit, reorderHabits, toggleHabitDate, updateHabitProgress,
       addJournalEntry, updateJournalEntry, deleteJournalEntry,
       darkMode, toggleDarkMode, setServerTimer, clearServerTimer
     }}>

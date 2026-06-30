@@ -11,7 +11,7 @@ import { TimerPage } from './components/TimerPage';
 import { JournalPage } from './components/JournalPage';
 import { AnalyticsPage } from './components/AnalyticsPage';
 import { formatDate, cn } from './lib/utils';
-import { Moon, Sun, Palette, X, User, LogOut, Check } from 'lucide-react';
+import { Moon, Sun, Palette, X, User, LogOut, Check, Camera, Mail, Trash2 } from 'lucide-react';
 import { BACKGROUND_COLORS, BACKGROUND_TEXTURES } from './lib/constants';
 import { auth, signInWithPopup, googleProvider, signOut } from './lib/firebase';
 import { updateProfile, updateEmail, deleteUser, verifyBeforeUpdateEmail } from 'firebase/auth';
@@ -55,7 +55,10 @@ function AppContent() {
     
     try {
       if (modalState.type === 'name') {
-        if (modalState.input.trim() === '') throw new Error('Name cannot be empty');
+        if (modalState.input.trim() === '') {
+          setModalError("Name can't be left blank.");
+          return;
+        }
         await updateProfile(auth.currentUser, { displayName: modalState.input.trim() });
         if (user) user.displayName = modalState.input.trim();
         setModalState({ type: 'success', input: 'Name updated successfully!' });
@@ -222,64 +225,89 @@ function AppContent() {
     }
   }, [currentPage, habits, journal]);
 
+  useEffect(() => {
+    const handlePointerMove = (e: PointerEvent) => {
+      document.body.style.setProperty('--bg-x', `${e.clientX * -0.05}px`);
+      document.body.style.setProperty('--bg-y', `${e.clientY * -0.05}px`);
+    };
+    window.addEventListener('pointermove', handlePointerMove);
+    return () => window.removeEventListener('pointermove', handlePointerMove);
+  }, []);
+
   const globalColor = 'bg-white dark:bg-black';
   const globalTexture = appSettings?.texture || '';
-  const isImageBg = BACKGROUND_TEXTURES.find(t => t.class === globalTexture)?.isImage;
+  const textureObj = BACKGROUND_TEXTURES.find(t => t.class === globalTexture);
+  const isImageBg = textureObj?.isImage;
+  const imageUrl = isImageBg ? globalTexture.match(/url\(['"]?(.*?)['"]?\)/)?.[1] : null;
 
   return (
-    <div className={cn("font-sans antialiased min-h-screen transition-colors duration-300", globalColor, globalTexture, isImageBg ? "bg-is-image" : "")}>
+    <div 
+      className={cn("font-sans antialiased min-h-screen transition-colors duration-300", globalColor, !isImageBg ? globalTexture : "")}
+      style={{ 
+        backgroundPosition: !isImageBg && globalTexture ? 'var(--bg-x) var(--bg-y)' : (isImageBg ? 'center' : undefined),
+        backgroundImage: isImageBg && imageUrl ? `url('${imageUrl}')` : undefined,
+        backgroundSize: isImageBg ? 'cover' : undefined,
+        backgroundAttachment: isImageBg ? 'fixed' : undefined,
+      }}
+    >
       <header className="fixed top-0 left-0 right-0 p-4 flex justify-between pointer-events-none z-[60]">
         <div></div>
-        <div className="flex gap-2 relative">
+        <div className="flex items-center gap-2 relative">
           <button 
             onClick={toggleGlobalSettings}
             className={cn(
-              "pointer-events-auto p-2 backdrop-blur rounded-full shadow border transition",
+              "pointer-events-auto p-2.5 backdrop-blur rounded-full shadow border transition",
               showGlobalSettings ? "bg-indigo-100 dark:bg-indigo-900 border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400" : "bg-white/80 dark:bg-gray-900/80 border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-300 hover:text-indigo-600"
             )}
           >
             <Palette className="w-5 h-5" />
           </button>
           <button 
-            onClick={toggleDarkMode}
-            className="pointer-events-auto p-2 bg-white/80 dark:bg-gray-900/80 backdrop-blur rounded-full shadow border border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-300 hover:text-indigo-600 transition"
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleDarkMode();
+            }}
+            className="pointer-events-auto p-2.5 bg-white/80 dark:bg-gray-900/80 backdrop-blur rounded-full shadow border border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-300 hover:text-indigo-600 transition"
           >
             {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
           </button>
           
           {user ? (
-            <div className="relative pointer-events-auto">
+            <div className="relative pointer-events-auto flex items-center">
               <button 
                 onClick={toggleProfileMenu}
                 className="w-10 h-10 rounded-full overflow-hidden border border-gray-200 dark:border-gray-800 shadow"
               >
-                <img src={user.photoURL || `https://ui-avatars.com/api/?name=${user.displayName}`} alt="Profile" className="w-full h-full object-cover" />
+                <img src={user.photoURL ? user.photoURL.replace(/=s\d+-c/i, '=s400-c') : `https://ui-avatars.com/api/?name=${user.displayName}&size=400`} alt="Profile" className="w-full h-full object-cover" />
               </button>
               
               {showProfileMenu && (
                 <div onClick={(e) => e.stopPropagation()} className="absolute top-12 right-0 w-64 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden z-[70] text-gray-900 dark:text-white">
-                  <div className="p-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
-                    <p className="text-sm font-bold truncate">{user.displayName}</p>
-                    <p className="text-xs text-gray-500 truncate mt-0.5">{user.email}</p>
+                  <div className="p-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex items-center gap-3">
+                    <img src={user.photoURL ? user.photoURL.replace(/=s\d+-c/i, '=s400-c') : `https://ui-avatars.com/api/?name=${user.displayName}&size=400`} alt="Profile" className="w-10 h-10 rounded-full object-cover border border-gray-200 dark:border-gray-700 shadow-sm" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold truncate">{user.displayName}</p>
+                      <p className="text-xs text-gray-500 truncate mt-0.5">{user.email}</p>
+                    </div>
                   </div>
                   <div className="p-2 space-y-1">
                     <button 
                       onClick={handleUpdateName}
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors flex items-center gap-2"
                     >
-                      Change Name
+                      <User className="w-4 h-4" /> Change Name
                     </button>
                     <button 
                       onClick={handleUpdatePhoto}
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors flex items-center gap-2"
                     >
-                      Change Profile Picture
+                      <Camera className="w-4 h-4" /> Change Profile Picture
                     </button>
                     <button 
                       onClick={handleUpdateEmail}
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors flex items-center gap-2"
                     >
-                      Update Email
+                      <Mail className="w-4 h-4" /> Update Email
                     </button>
                   </div>
                   <div className="h-px bg-gray-100 dark:bg-gray-700 w-full" />
@@ -294,7 +322,7 @@ function AppContent() {
                       onClick={handleDeleteAccount}
                       className="w-full text-left px-3 py-2 text-sm hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 flex items-center gap-2 rounded-lg transition-colors"
                     >
-                      <User className="w-4 h-4" /> Delete Account
+                      <Trash2 className="w-4 h-4" /> Delete Account
                     </button>
                   </div>
                 </div>
@@ -433,12 +461,12 @@ function AppContent() {
 
             {modalState.type === 'email_verify' && (
               <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
-                Verification Link Sent. Please check your inbox and tap the link to change your email, then click Done.
+                Verification Link Sent. Please check your inbox and tap the link to change your email.
               </p>
             )}
             
             {modalState.type === 'photo_options' && (
-              <div className="flex flex-col gap-2 mb-4">
+              <div className="flex flex-col gap-2 mb-2">
                 <button 
                   onClick={() => {
                     setModalState({ type: null, input: '' });
@@ -458,6 +486,12 @@ function AppContent() {
                     Remove Current Picture
                   </button>
                 )}
+                <button
+                  onClick={() => setModalState({ type: null, input: '' })}
+                  className="w-full px-4 py-2 text-gray-600 dark:text-gray-300 font-medium rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition text-center mt-1"
+                >
+                  Cancel
+                </button>
               </div>
             )}
             

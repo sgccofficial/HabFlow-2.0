@@ -132,11 +132,11 @@ export function JournalPage() {
   return (
     <div className="pb-24 pt-8 px-4">
       <div className="max-w-md mx-auto">
-        <header className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2 page-header-title">
+        <header className="mb-6 p-4 rounded-2xl bg-white/40 dark:bg-black/30 backdrop-blur-md shadow-sm border border-white/20 dark:border-white/10">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
             Journal
           </h1>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 page-header-subtitle">
+          <p className="text-sm text-gray-700 dark:text-gray-300 mt-1 font-medium">
             {journalStats.total} {journalStats.total === 1 ? 'entry' : 'entries'}
             {journalStats.topHabit && ` • Mostly about ${journalStats.topHabit.name}`}
           </p>

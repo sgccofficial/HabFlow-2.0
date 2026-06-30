@@ -251,9 +251,9 @@ export function TimerPage() {
     const mins = Math.floor((durationSecs % 3600) / 60);
     const secs = durationSecs % 60;
     let timeString = '';
-    if (hrs > 0) timeString += `${hrs} hr `;
-    if (mins > 0) timeString += `${mins} min `;
-    if (secs > 0 || timeString === '') timeString += `${secs} sec`;
+    if (hrs > 0) timeString += `${hrs} hour${hrs > 1 ? 's' : ''} `;
+    if (mins > 0) timeString += `${mins} minute${mins > 1 ? 's' : ''} `;
+    if (secs > 0 || timeString === '') timeString += `${secs} second${secs > 1 ? 's' : ''}`;
     timeString = timeString.trim();
     
     try {
@@ -348,10 +348,10 @@ export function TimerPage() {
   };
 
   return (
-    <div className="pt-8 px-4 pb-4 flex flex-col items-center justify-center min-h-[calc(100dvh-6rem)] overflow-hidden">
-      <div className="w-full max-w-[380px] flex flex-col justify-center mt-4">
-        <header className="mb-4 text-center">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white page-header-title">Timer</h1>
+    <div className="pt-4 px-4 pb-4 flex flex-col items-center justify-center min-h-[calc(100dvh-6rem)] overflow-hidden">
+      <div className="w-full max-w-[380px] flex flex-col justify-center">
+        <header className="mb-4 p-4 rounded-2xl bg-white/40 dark:bg-black/30 backdrop-blur-md shadow-sm border border-white/20 dark:border-white/10 text-center">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Timer</h1>
         </header>
 
         <div className="bg-white dark:bg-gray-900 rounded-3xl p-7 shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col items-center">

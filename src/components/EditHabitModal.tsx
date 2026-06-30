@@ -20,6 +20,7 @@ export function EditHabitModal({ habit, onClose }: EditModalProps) {
   const { updateHabit, deleteHabit } = useAppContext();
   
   const [name, setName] = useState(habit.name);
+  const [showNameError, setShowNameError] = useState(false);
   const [color, setColor] = useState(habit.color);
   const [icon, setIcon] = useState(habit.icon);
   const [reminderTime, setReminderTime] = useState(habit.reminderTime);
@@ -40,7 +41,10 @@ export function EditHabitModal({ habit, onClose }: EditModalProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const handleSave = () => {
-    if (!name.trim()) return;
+    if (!name.trim()) {
+      setShowNameError(true);
+      return;
+    }
     
     let finalDailyCompletions = hasDaily ? dailyCompletions : 0;
     let finalDurationGoal = hasTimely ? (durationHours * 3600 + durationMinutes * 60 + durationSeconds) : 0;
@@ -63,6 +67,7 @@ export function EditHabitModal({ habit, onClose }: EditModalProps) {
     
     updateHabit(habit.id, { 
       name: name.trim(), 
+      category: habit.category || '',
       color, 
       icon, 
       reminderTime, 
@@ -110,9 +115,20 @@ export function EditHabitModal({ habit, onClose }: EditModalProps) {
               type="text" 
               maxLength={25}
               value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full px-3 py-2 border dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white"
+              onChange={(e) => {
+                setName(e.target.value);
+                if (showNameError) setShowNameError(false);
+              }}
+              className={cn(
+                "w-full px-3 py-2 border rounded-xl bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-white transition-colors",
+                showNameError 
+                  ? "border-red-500 dark:border-red-500 focus:ring-1 focus:ring-red-500 focus:border-red-500" 
+                  : "dark:border-gray-700 focus:ring-1 focus:ring-indigo-500"
+              )}
             />
+            {showNameError && (
+              <p className="mt-1.5 text-sm text-red-500 font-medium">A name is needed</p>
+            )}
           </div>
 
           <div>

@@ -8,6 +8,7 @@ interface HabitCardProps {
   habit: Habit;
   onEdit: () => void;
   onOpenCalendar: () => void;
+  dragHandleProps?: any;
 }
 
 // Helper to get lucide icon by name
@@ -16,7 +17,7 @@ export const getIcon = (name: string) => {
   return <Icon className="w-5 h-5" />;
 };
 
-export function HabitCard({ habit, onEdit, onOpenCalendar }: HabitCardProps) {
+export function HabitCard({ habit, onEdit, onOpenCalendar, dragHandleProps }: HabitCardProps) {
   const { toggleHabitDate, updateHabitProgress, setCurrentPage, setActiveHabitId } = useAppContext();
   const todayStr = formatDate(new Date());
   
@@ -40,6 +41,15 @@ export function HabitCard({ habit, onEdit, onOpenCalendar }: HabitCardProps) {
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-700 flex items-center gap-3 transition-all hover:shadow-md">
+      {dragHandleProps && (
+        <div 
+          className="flex-shrink-0 text-gray-300 dark:text-gray-600 cursor-grab hover:text-gray-500 transition-colors -ml-2 p-2 touch-none" 
+          {...dragHandleProps}
+        >
+          <LucideIcons.GripVertical className="w-4 h-4" />
+        </div>
+      )}
+      
       <div 
         className="flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center text-white"
         style={{ backgroundColor: habit.color }}
