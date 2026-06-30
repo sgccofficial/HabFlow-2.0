@@ -101,6 +101,9 @@ export function CalendarModal({ habit, onClose }: CalendarModalProps) {
                   if (isTargetDay) {
                     bgColor = "bg-red-50 dark:bg-red-900/20";
                     textColor = "text-red-500 dark:text-red-400";
+                  } else {
+                    bgColor = "bg-gray-100 dark:bg-gray-800/50";
+                    textColor = "text-gray-400 dark:text-gray-500";
                   }
                 }
               }
@@ -124,18 +127,18 @@ export function CalendarModal({ habit, onClose }: CalendarModalProps) {
 
         <div className="p-4 bg-gray-50 dark:bg-gray-800/50 flex gap-2">
           <button
-            onClick={() => handleShortcut('timer')}
-            className="flex-1 flex flex-col items-center justify-center gap-1 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition"
-          >
-            <Timer className="w-4 h-4 text-indigo-500" />
-            <span className="text-[10px] font-medium dark:text-gray-200">Timer</span>
-          </button>
-          <button
             onClick={() => handleShortcut('journal')}
             className="flex-1 flex flex-col items-center justify-center gap-1 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition"
           >
             <BookOpen className="w-4 h-4 text-emerald-500" />
             <span className="text-[10px] font-medium dark:text-gray-200">Journal</span>
+          </button>
+          <button
+            onClick={() => handleShortcut('timer')}
+            className="flex-1 flex flex-col items-center justify-center gap-1 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+          >
+            <Timer className="w-4 h-4 text-indigo-500" />
+            <span className="text-[10px] font-medium dark:text-gray-200">Timer</span>
           </button>
           <button
             onClick={() => handleShortcut('analytics')}

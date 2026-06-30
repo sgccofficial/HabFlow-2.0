@@ -58,14 +58,11 @@ export function calculateStreak(habit: Habit): number {
     const dStr = formatDate(current);
     if (dStr < created) break;
 
-    const dayOfWeek = current.getDay();
-    
-    if (targetDays.includes(dayOfWeek)) {
-      if (checkDayCompleted(dStr)) {
-        streak++;
-      } else {
-        // If it's today and we haven't completed it yet, we just don't count it towards streak.
-        // But it shouldn't break the streak from past days.
+    if (checkDayCompleted(dStr)) {
+      streak++;
+    } else {
+      const dayOfWeek = current.getDay();
+      if (targetDays.includes(dayOfWeek)) {
         if (dStr !== todayStr) {
           break; // Past required day missed -> streak broken
         }

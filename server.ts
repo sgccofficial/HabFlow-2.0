@@ -89,10 +89,14 @@ app.post('/api/sync-tasks', async (req, res) => {
     if (activeTimers !== undefined) subs[docId].activeTimers = activeTimers;
     if (dailyReminders !== undefined) {
       const existingReminders = subs[docId].dailyReminders || [];
+      const now = Date.now();
       subs[docId].dailyReminders = dailyReminders.map((nr: any) => {
         const ex = existingReminders.find((er: any) => er.title === nr.title && er.time === nr.time);
-        if (ex && ex.lastSentTimestamp) {
-          nr.lastSentTimestamp = ex.lastSentTimestamp;
+        if (ex) {
+          if (ex.lastSentTimestamp) nr.lastSentTimestamp = ex.lastSentTimestamp;
+          if (ex.createdTs) nr.createdTs = ex.createdTs;
+        } else {
+          nr.createdTs = now;
         }
         return nr;
       });
@@ -154,14 +158,40 @@ async function processNotifications() {
 
         if (isTargetDay && !isCompleted && currentMins >= rTimeMins) {
           const lastSentTimestamp = r.lastSentTimestamp || 0;
-          // Cooldown of at least 115 minutes (approx 2 hours) to prevent duplicates
-          if (now - lastSentTimestamp >= 115 * 60 * 1000) {
+          const createdTs = r.createdTs || 0;
+          
+          const lastSentDate = new Date(lastSentTimestamp - ((s.timezoneOffset || 0) * 60000));
+          const lastSentTodayStr = lastSentDate.toISOString().split('T')[0];
+          const sentToday = lastSentTimestamp > 0 && lastSentTodayStr === todayStr;
+
+          let shouldSend = false;
+
+          if (!sentToday) {
+            const createdDate = new Date(createdTs - ((s.timezoneOffset || 0) * 60000));
+            const createdTodayStr = createdDate.toISOString().split('T')[0];
+            const createdToday = createdTs > 0 && createdTodayStr === todayStr;
+            const createdMins = createdDate.getUTCHours() * 60 + createdDate.getUTCMinutes();
+
+            if (createdToday && createdMins >= rTimeMins) {
+               if (now - createdTs >= 115 * 60 * 1000) {
+                 shouldSend = true;
+               }
+            } else {
+               shouldSend = true;
+            }
+          } else {
+            if (now - lastSentTimestamp >= 115 * 60 * 1000) {
+              shouldSend = true;
+            }
+          }
+
+          if (shouldSend) {
             r.lastSentTimestamp = now;
             modified = true;
             try {
               await webpush.sendNotification(s.sub, JSON.stringify({ 
                 title: `Daily Reminder - ${r.title}...`, 
-                body: `Let's build this streak to ${r.streak + 1} 🔥` 
+                body: `Let's build this streak to ${(r.streak || 0) + 1} 🔥` 
               }));
             } catch(e) {
               console.error('Push failed for reminder', e);

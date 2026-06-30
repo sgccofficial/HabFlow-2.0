@@ -13,7 +13,7 @@ import { AnalyticsPage } from './components/AnalyticsPage';
 import { formatDate, cn } from './lib/utils';
 import { Moon, Sun, Palette, X, User, LogOut, Check, Camera, Mail, Trash2 } from 'lucide-react';
 import { BACKGROUND_COLORS, BACKGROUND_TEXTURES } from './lib/constants';
-import { auth, signInWithPopup, signInWithRedirect, googleProvider, signOut } from './lib/firebase';
+import { auth, signInWithPopup, signInWithRedirect, getRedirectResult, googleProvider, signOut } from './lib/firebase';
 import { updateProfile, updateEmail, deleteUser, verifyBeforeUpdateEmail } from 'firebase/auth';
 
 import { ImageCropper } from './components/ImageCropper';
@@ -35,6 +35,13 @@ function AppContent() {
       setShowProfileMenu(false);
     };
     document.addEventListener('click', handleDocumentClick);
+    
+    // Handle redirect result
+    getRedirectResult(auth).catch((error) => {
+      console.error('Redirect sign-in error:', error);
+      alert(`Sign-in failed: ${error.message}`);
+    });
+
     return () => document.removeEventListener('click', handleDocumentClick);
   }, []);
 
@@ -279,11 +286,11 @@ function AppContent() {
                 className="w-10 h-10 rounded-full overflow-hidden border border-gray-200 dark:border-gray-800 shadow"
               >
                 <img 
-                  src={user.photoURL ? user.photoURL.replace(/=s\d+-c/i, '=s400-c') : `https://ui-avatars.com/api/?name=${user.displayName}&size=400`} 
+                  src={user.photoURL ? user.photoURL.replace(/=s\d+-c/i, '=s400-c') : `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName || 'User')}&size=400`} 
                   alt="Profile" 
                   className="w-full h-full object-cover"
                   onError={(e) => {
-                    (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${user.displayName}&size=400`;
+                    (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName || 'User')}&size=400`;
                   }}
                 />
               </button>
@@ -292,11 +299,11 @@ function AppContent() {
                 <div onClick={(e) => e.stopPropagation()} className="absolute top-12 right-0 w-64 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden z-[70] text-gray-900 dark:text-white">
                   <div className="p-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex items-center gap-3">
                     <img 
-                      src={user.photoURL ? user.photoURL.replace(/=s\d+-c/i, '=s400-c') : `https://ui-avatars.com/api/?name=${user.displayName}&size=400`} 
+                      src={user.photoURL ? user.photoURL.replace(/=s\d+-c/i, '=s400-c') : `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName || 'User')}&size=400`} 
                       alt="Profile" 
                       className="w-10 h-10 rounded-full object-cover border border-gray-200 dark:border-gray-700 shadow-sm"
                       onError={(e) => {
-                        (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${user.displayName}&size=400`;
+                        (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.displayName || 'User')}&size=400`;
                       }}
                     />
                     <div className="flex-1 min-w-0">

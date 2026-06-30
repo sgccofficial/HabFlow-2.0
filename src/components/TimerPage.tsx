@@ -260,12 +260,12 @@ export function TimerPage() {
       if ('Notification' in window && Notification.permission === 'granted') {
         navigator.serviceWorker.ready.then(reg => {
           reg.showNotification('Timer Started...', {
-            body: `${title}'s timer is started for ${timeString}.`,
+            body: `${title}'s timer is set for ${timeString}.`,
             icon: '/icon.png'
           });
         }).catch(e => {
           new Notification('Timer Started...', {
-            body: `${title}'s timer is started for ${timeString}.`,
+            body: `${title}'s timer is set for ${timeString}.`,
           });
         });
       } else if ('Notification' in window && Notification.permission !== 'denied') {

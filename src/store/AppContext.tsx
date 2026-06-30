@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Habit, JournalEntry, Page, JournalSettings } from '../types';
-import { formatDate } from '../lib/utils';
+import { formatDate, calculateStreak } from '../lib/utils';
 
 interface AppContextType {
   habits: Habit[];
@@ -231,7 +231,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         time: h.reminderTime,
         lastSentDay: null, // initial
         targetDays: h.targetDays,
-        dates: h.dates
+        dates: h.dates,
+        streak: calculateStreak(h)
       }));
 
     try {
@@ -255,7 +256,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // We get current daily reminders
     const dailyReminders = habits
       .filter(h => h.reminderTime)
-      .map(h => ({ title: h.name, time: h.reminderTime, lastSentDay: null, targetDays: h.targetDays, dates: h.dates }));
+      .map(h => ({ title: h.name, time: h.reminderTime, lastSentDay: null, targetDays: h.targetDays, dates: h.dates, streak: calculateStreak(h) }));
 
     const timerObj = {
       title: "Time's Up !!",
@@ -284,7 +285,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!swSubscription) return;
     const dailyReminders = habits
       .filter(h => h.reminderTime)
-      .map(h => ({ title: h.name, time: h.reminderTime, lastSentDay: null, targetDays: h.targetDays, dates: h.dates }));
+      .map(h => ({ title: h.name, time: h.reminderTime, lastSentDay: null, targetDays: h.targetDays, dates: h.dates, streak: calculateStreak(h) }));
 
     try {
       await fetch('/api/sync-tasks', {
