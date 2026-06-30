@@ -159,7 +159,10 @@ async function processNotifications() {
             r.lastSentTimestamp = now;
             modified = true;
             try {
-              await webpush.sendNotification(s.sub, JSON.stringify({ title: "Daily Reminder", body: `It's time to work on ${r.title}...` }));
+              await webpush.sendNotification(s.sub, JSON.stringify({ 
+                title: `Daily Reminder - ${r.title}...`, 
+                body: `Let's build this streak to ${r.streak + 1} 🔥` 
+              }));
             } catch(e) {
               console.error('Push failed for reminder', e);
             }

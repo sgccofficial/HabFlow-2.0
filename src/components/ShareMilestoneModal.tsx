@@ -60,7 +60,7 @@ export function ShareMilestoneModal({ habit, overallStats, onClose }: ShareMiles
 
   const shareTitle = habit ? `${habit.name} Milestone` : `${shortName}'s Habits Journey`;
   const shareText = habit 
-    ? `I've completed ${habit.name} for ${streak} days in a row!`
+    ? `I've built ${habit.name} for ${streak} days in a row!`
     : `I've reached ${overallStats?.totalCompletions} completions across ${overallStats?.activeHabits} active habits!`;
   const shareFileName = habit
     ? `milestone-${habit.name.replace(/\s+/g, '-').toLowerCase()}.png`

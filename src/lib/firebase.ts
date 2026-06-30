@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, signOut } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 // @ts-ignore
@@ -23,4 +23,4 @@ googleProvider.setCustomParameters({
   prompt: 'select_account'
 });
 
-export { signInWithPopup, signOut };
+export { signInWithPopup, signInWithRedirect, signOut };

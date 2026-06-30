@@ -259,13 +259,13 @@ export function TimerPage() {
     try {
       if ('Notification' in window && Notification.permission === 'granted') {
         navigator.serviceWorker.ready.then(reg => {
-          reg.showNotification('Timer Started', {
-            body: `${title}'s timer started for ${timeString}.`,
+          reg.showNotification('Timer Started...', {
+            body: `${title}'s timer is started for ${timeString}.`,
             icon: '/icon.png'
           });
         }).catch(e => {
-          new Notification('Timer Started', {
-            body: `${title}'s timer started for ${timeString}.`,
+          new Notification('Timer Started...', {
+            body: `${title}'s timer is started for ${timeString}.`,
           });
         });
       } else if ('Notification' in window && Notification.permission !== 'denied') {

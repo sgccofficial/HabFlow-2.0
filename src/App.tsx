@@ -13,7 +13,7 @@ import { AnalyticsPage } from './components/AnalyticsPage';
 import { formatDate, cn } from './lib/utils';
 import { Moon, Sun, Palette, X, User, LogOut, Check, Camera, Mail, Trash2 } from 'lucide-react';
 import { BACKGROUND_COLORS, BACKGROUND_TEXTURES } from './lib/constants';
-import { auth, signInWithPopup, googleProvider, signOut } from './lib/firebase';
+import { auth, signInWithPopup, signInWithRedirect, googleProvider, signOut } from './lib/firebase';
 import { updateProfile, updateEmail, deleteUser, verifyBeforeUpdateEmail } from 'firebase/auth';
 
 import { ImageCropper } from './components/ImageCropper';
@@ -242,7 +242,7 @@ function AppContent() {
 
   return (
     <div 
-      className={cn("font-sans antialiased min-h-screen transition-colors duration-300", globalColor, !isImageBg ? globalTexture : "")}
+      className={cn("relative font-sans antialiased min-h-screen transition-colors duration-300", globalColor, !isImageBg ? globalTexture : "")}
       style={{ 
         backgroundPosition: !isImageBg && globalTexture ? 'var(--bg-x) var(--bg-y)' : (isImageBg ? 'center' : undefined),
         backgroundImage: isImageBg && imageUrl ? `url('${imageUrl}')` : undefined,
@@ -250,7 +250,7 @@ function AppContent() {
         backgroundAttachment: isImageBg ? 'fixed' : undefined,
       }}
     >
-      <header className="fixed top-0 left-0 right-0 p-4 flex justify-between pointer-events-none z-[60]">
+      <header className="absolute top-0 left-0 right-0 p-4 flex justify-between pointer-events-none z-[60]">
         <div></div>
         <div className="flex items-center gap-2 relative">
           <button 
@@ -278,13 +278,27 @@ function AppContent() {
                 onClick={toggleProfileMenu}
                 className="w-10 h-10 rounded-full overflow-hidden border border-gray-200 dark:border-gray-800 shadow"
               >
-                <img src={user.photoURL ? user.photoURL.replace(/=s\d+-c/i, '=s400-c') : `https://ui-avatars.com/api/?name=${user.displayName}&size=400`} alt="Profile" className="w-full h-full object-cover" />
+                <img 
+                  src={user.photoURL ? user.photoURL.replace(/=s\d+-c/i, '=s400-c') : `https://ui-avatars.com/api/?name=${user.displayName}&size=400`} 
+                  alt="Profile" 
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${user.displayName}&size=400`;
+                  }}
+                />
               </button>
               
               {showProfileMenu && (
                 <div onClick={(e) => e.stopPropagation()} className="absolute top-12 right-0 w-64 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden z-[70] text-gray-900 dark:text-white">
                   <div className="p-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex items-center gap-3">
-                    <img src={user.photoURL ? user.photoURL.replace(/=s\d+-c/i, '=s400-c') : `https://ui-avatars.com/api/?name=${user.displayName}&size=400`} alt="Profile" className="w-10 h-10 rounded-full object-cover border border-gray-200 dark:border-gray-700 shadow-sm" />
+                    <img 
+                      src={user.photoURL ? user.photoURL.replace(/=s\d+-c/i, '=s400-c') : `https://ui-avatars.com/api/?name=${user.displayName}&size=400`} 
+                      alt="Profile" 
+                      className="w-10 h-10 rounded-full object-cover border border-gray-200 dark:border-gray-700 shadow-sm"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${user.displayName}&size=400`;
+                      }}
+                    />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-bold truncate">{user.displayName}</p>
                       <p className="text-xs text-gray-500 truncate mt-0.5">{user.email}</p>
@@ -333,7 +347,15 @@ function AppContent() {
               onClick={() => {
                 signInWithPopup(auth, googleProvider).catch((error: any) => {
                   console.error('Sign-in error:', error);
-                  alert(`Sign-in failed: ${error.message}\nMake sure your app's URL is added to the Authorized Domains in the Firebase Console (Authentication > Settings > Authorized domains).`);
+                  if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/popup-blocked') {
+                    // Fallback for mobile/external browsers
+                    signInWithRedirect(auth, googleProvider).catch((redirectError) => {
+                       console.error('Redirect sign-in error:', redirectError);
+                       alert(`Sign-in failed: ${redirectError.message}`);
+                    });
+                  } else {
+                    alert(`Sign-in failed: ${error.message}\nMake sure your app's URL is added to the Authorized Domains in the Firebase Console.`);
+                  }
                 });
               }}
               className="pointer-events-auto flex items-center gap-2 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow transition-colors text-sm font-medium h-10"
@@ -345,7 +367,7 @@ function AppContent() {
       </header>
 
       {showGlobalSettings && (
-        <div className="fixed inset-0 z-[100] flex justify-end p-4 pointer-events-none top-16">
+        <div className="absolute inset-0 z-[100] flex justify-end p-4 pointer-events-none top-16">
           <div onClick={(e) => e.stopPropagation()} className="bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl w-full max-w-sm rounded-3xl p-6 shadow-2xl relative border border-gray-200/50 dark:border-gray-700/50 pointer-events-auto h-fit max-h-[80vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-gray-900 dark:text-white">Palette</h2>
