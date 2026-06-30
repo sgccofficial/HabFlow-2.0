@@ -333,9 +333,7 @@ function AppContent() {
               onClick={() => {
                 signInWithPopup(auth, googleProvider).catch((error: any) => {
                   console.error('Sign-in error:', error);
-                  if (error.code !== 'auth/popup-closed-by-user' && error.code !== 'auth/cancelled-popup-request') {
-                    alert(`Sign-in failed: ${error.message}\nMake sure your app's URL is added to the Authorized Domains in the Firebase Console (Authentication > Settings > Authorized domains).`);
-                  }
+                  alert(`Sign-in failed: ${error.message}\nMake sure your app's URL is added to the Authorized Domains in the Firebase Console (Authentication > Settings > Authorized domains).`);
                 });
               }}
               className="pointer-events-auto flex items-center gap-2 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow transition-colors text-sm font-medium h-10"
