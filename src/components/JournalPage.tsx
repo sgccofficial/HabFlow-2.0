@@ -7,6 +7,19 @@ import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 
+const processMarkdownContent = (text: string) => {
+  if (!text) return '';
+  // Convert custom list markers
+  let processed = text.replace(/^(\s*)☐ /gm, '$1- [ ] ')
+                      .replace(/^(\s*)☑ /gm, '$1- [x] ')
+                      .replace(/^(\s*)• /gm, '$1- ');
+                      
+  // Auto-link bare domains (e.g. example.com, test.in)
+  const domainRegex = /(^|\s)([a-zA-Z0-9-]+\.[a-zA-Z]{2,6})(?=$|\s|[.,?!])/gi;
+  processed = processed.replace(domainRegex, '$1[$2](https://$2)');
+  return processed;
+};
+
 export function JournalPage() {
   const { journal, habits, addJournalEntry, updateJournalEntry, deleteJournalEntry, activeHabitId, setActiveHabitId } = useAppContext();
   
@@ -248,6 +261,15 @@ export function JournalPage() {
                         <Markdown 
                           remarkPlugins={[remarkGfm, remarkBreaks]}
                           components={{
+                            a: ({ node, href, ...props }) => {
+                              let safeHref = href || '';
+                              if (safeHref.startsWith('http://')) {
+                                safeHref = safeHref.replace(/^http:\/\//i, 'https://');
+                              } else if (!safeHref.startsWith('https://') && !safeHref.startsWith('mailto:') && safeHref.includes('.')) {
+                                safeHref = 'https://' + safeHref;
+                              }
+                              return <a {...props} href={safeHref} target="_blank" rel="noopener noreferrer" className="text-indigo-600 dark:text-indigo-400 hover:underline" />;
+                            },
                             input: ({ node, checked, disabled, ...props }) => (
                               <input 
                                 {...props}
@@ -260,7 +282,7 @@ export function JournalPage() {
                             )
                           }}
                         >
-                          {entry.content.replace(/^(\s*)☐ /gm, '$1- [ ] ').replace(/^(\s*)☑ /gm, '$1- [x] ').replace(/^(\s*)• /gm, '$1- ')}
+                          {processMarkdownContent(entry.content)}
                         </Markdown>
                       </div>
                       

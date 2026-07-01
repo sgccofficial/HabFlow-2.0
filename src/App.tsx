@@ -17,16 +17,30 @@ import { ImageCropper } from './components/ImageCropper';
 import { Eye, EyeOff } from 'lucide-react';
 
 function AppContent() {
-  const { currentPage, darkMode, toggleDarkMode, habits, appSettings, updateAppSettings, journal, user, setUser } = useAppContext();
+  const { currentPage, darkMode, toggleDarkMode, habits, appSettings, updateAppSettings, journal, user, setUser, addJournalEntry, setCurrentPage } = useAppContext();
   const checkedReminders = useRef<Set<string>>(new Set());
   const [showGlobalSettings, setShowGlobalSettings] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [modalState, setModalState] = useState<{type: 'name' | 'real_name' | 'photo_options' | 'delete' | 'signout' | 'success' | 'auth_options' | 'create_account' | 'sign_in' | null, input: string, nameInput?: string, password?: string, profilePic?: string}>({type: null, input: '', nameInput: '', password: '', profilePic: ''});
   const [showPassword, setShowPassword] = useState(false);
   const [modalError, setModalError] = useState('');
+  const [shareData, setShareData] = useState<{title: string, text: string, url: string} | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const title = params.get('title') || '';
+    const text = params.get('text') || '';
+    const url = params.get('url') || '';
+
+    if (title || text || url) {
+      setShareData({ title, text, url });
+      // clean up the URL without refreshing
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
 
   useEffect(() => {
     const handleDocumentClick = () => {
@@ -522,6 +536,43 @@ function AppContent() {
             if (fileInputRef.current) fileInputRef.current.value = '';
           }} 
         />
+      )}
+
+      {shareData && (
+        <div className="fixed inset-0 z-[120] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300">
+          <div onClick={(e) => e.stopPropagation()} className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-2xl w-full max-w-sm border border-gray-200 dark:border-gray-700">
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Save Shared Content</h3>
+            <p className="text-sm text-gray-500 mb-4 truncate">{shareData.title || shareData.text}</p>
+            <div className="flex flex-col gap-3">
+              <button 
+                onClick={() => {
+                   const contentParts = [];
+                   if (shareData.title) contentParts.push(`# ${shareData.title}`);
+                   if (shareData.text) contentParts.push(shareData.text);
+                   if (shareData.url) contentParts.push(shareData.url);
+                   
+                   addJournalEntry({
+                     habitId: '', // General journal
+                     content: contentParts.join('\n\n'),
+                     date: formatDate(new Date()),
+                     timestamp: Date.now()
+                   });
+                   setShareData(null);
+                   setCurrentPage('journal');
+                }}
+                className="w-full px-4 py-3 bg-indigo-600 text-white font-medium rounded-xl hover:bg-indigo-700 transition"
+              >
+                Save to Journal
+              </button>
+              <button 
+                onClick={() => setShareData(null)}
+                className="w-full px-4 py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-medium rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Custom Modal */}

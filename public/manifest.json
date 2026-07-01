@@ -48,6 +48,16 @@
       "type": "image/png"
     }
   ],
+  "share_target": {
+    "action": "/",
+    "method": "GET",
+    "enctype": "application/x-www-form-urlencoded",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  },
   "shortcuts": [
     {
       "name": "New Journal Entry",
@@ -69,6 +79,19 @@
       "description": "Start a new focus timer",
       "url": "/",
       "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
+    }
+  ],
+  "prefer_related_applications": false,
+  "related_applications": [
+    {
+      "platform": "play",
+      "url": "https://play.google.com/store/apps/details?id=com.habitflow.app",
+      "id": "com.habitflow.app"
+    }
+  ],
+  "scope_extensions": [
+    {
+      "origin": "*.onrender.com"
     }
   ],
   "orientation": "portrait"
