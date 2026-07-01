@@ -261,12 +261,14 @@ export function TimerPage() {
         navigator.serviceWorker.ready.then(reg => {
           reg.showNotification('Timer Started...', {
             body: `${title}'s timer is set for ${timeString}.`,
-            icon: `/icon-192.png`
+            icon: '/icon-192.png',
+            badge: '/badge-192.png'
           });
         }).catch(e => {
           new Notification('Timer Started...', {
             body: `${title}'s timer is set for ${timeString}.`,
-            icon: `/icon-192.png`
+            icon: '/icon-192.png',
+            badge: '/badge-192.png'
           });
         });
       } else if ('Notification' in window && Notification.permission !== 'denied') {
