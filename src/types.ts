@@ -21,6 +21,7 @@ export interface JournalEntry {
   habitId: string; // the habit this entry is linked to
   date: string; // ISO format "YYYY-MM-DD"
   content: string;
+  createdAt?: number;
 }
 
 export interface JournalSettings {

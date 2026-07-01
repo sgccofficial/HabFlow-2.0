@@ -453,7 +453,7 @@ export function HabitsPage() {
             type="text"
             value={newHabitName}
             onChange={(e) => setNewHabitName(e.target.value)}
-            maxLength={25}
+            maxLength={30}
             placeholder="What do you want to build?"
             className="w-full pl-4 pr-12 py-4 rounded-2xl bg-white dark:bg-gray-800 border-none shadow-sm focus:ring-2 focus:ring-indigo-500 text-gray-900 dark:text-white dark:placeholder-gray-500 font-medium"
           />
@@ -580,7 +580,7 @@ export function HabitsPage() {
                 <form onSubmit={handleCreateCategory}>
                   <input
                     type="text"
-                    maxLength={20}
+                    maxLength={30}
                     placeholder="Group name..."
                     value={newCategoryName}
                     onChange={(e) => setNewCategoryName(e.target.value)}
@@ -736,7 +736,7 @@ export function HabitsPage() {
                   }}>
                     <input
                       type="text"
-                      maxLength={20}
+                      maxLength={30}
                       placeholder="New group name..."
                       value={renameCategoryName}
                       onChange={(e) => setRenameCategoryName(e.target.value)}

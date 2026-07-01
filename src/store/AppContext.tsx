@@ -10,6 +10,7 @@ interface AppContextType {
   currentPage: Page;
   activeHabitId: string | null;
   user: any | null;
+  setUser: (user: any | null) => void;
   setCurrentPage: (page: Page) => void;
   setActiveHabitId: (id: string | null) => void;
   updateJournalSettings: (habitId: string, settings: JournalSettings) => void;
@@ -32,25 +33,80 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<any | null>(() => {
+    const saved = localStorage.getItem('habitflow_current_user');
+    return saved ? JSON.parse(saved) : null;
+  });
+
+  const [dataLoadedForUser, setDataLoadedForUser] = useState<string | null>(user ? user.id : null);
+
+  const getStorageKey = (key: string) => {
+    return user ? `${key}_${user.id}` : key;
+  };
+
   const [habits, setHabits] = useState<Habit[]>(() => {
-    const saved = localStorage.getItem('habitflow_habits');
+    const savedUser = localStorage.getItem('habitflow_current_user');
+    const u = savedUser ? JSON.parse(savedUser) : null;
+    const key = u ? `habitflow_habits_${u.id}` : 'habitflow_habits';
+    const saved = localStorage.getItem(key);
     return saved ? JSON.parse(saved) : [];
   });
 
   const [journal, setJournal] = useState<JournalEntry[]>(() => {
-    const saved = localStorage.getItem('habitflow_journal');
+    const savedUser = localStorage.getItem('habitflow_current_user');
+    const u = savedUser ? JSON.parse(savedUser) : null;
+    const key = u ? `habitflow_journal_${u.id}` : 'habitflow_journal';
+    const saved = localStorage.getItem(key);
     return saved ? JSON.parse(saved) : [];
   });
 
   const [journalSettings, setJournalSettings] = useState<Record<string, JournalSettings>>(() => {
-    const saved = localStorage.getItem('habitflow_journal_settings');
+    const savedUser = localStorage.getItem('habitflow_current_user');
+    const u = savedUser ? JSON.parse(savedUser) : null;
+    const key = u ? `habitflow_journal_settings_${u.id}` : 'habitflow_journal_settings';
+    const saved = localStorage.getItem(key);
     return saved ? JSON.parse(saved) : {};
   });
 
   const [appSettings, setAppSettings] = useState<JournalSettings>(() => {
-    const saved = localStorage.getItem('habitflow_app_settings');
+    const savedUser = localStorage.getItem('habitflow_current_user');
+    const u = savedUser ? JSON.parse(savedUser) : null;
+    const key = u ? `habitflow_app_settings_${u.id}` : 'habitflow_app_settings';
+    const saved = localStorage.getItem(key);
     return saved ? JSON.parse(saved) : {};
   });
+
+  // When user changes, reload data
+  useEffect(() => {
+    if (user) {
+      localStorage.setItem('habitflow_current_user', JSON.stringify(user));
+      const h = localStorage.getItem(`habitflow_habits_${user.id}`);
+      setHabits(h ? JSON.parse(h) : []);
+      const j = localStorage.getItem(`habitflow_journal_${user.id}`);
+      setJournal(j ? JSON.parse(j) : []);
+      const js = localStorage.getItem(`habitflow_journal_settings_${user.id}`);
+      setJournalSettings(js ? JSON.parse(js) : {});
+      const as = localStorage.getItem(`habitflow_app_settings_${user.id}`);
+      setAppSettings(as ? JSON.parse(as) : {});
+      setDataLoadedForUser(user.id);
+    } else {
+      localStorage.removeItem('habitflow_current_user');
+      const h = localStorage.getItem('habitflow_habits');
+      setHabits(h ? JSON.parse(h) : []);
+      const j = localStorage.getItem('habitflow_journal');
+      setJournal(j ? JSON.parse(j) : []);
+      const js = localStorage.getItem('habitflow_journal_settings');
+      setJournalSettings(js ? JSON.parse(js) : {});
+      const as = localStorage.getItem('habitflow_app_settings');
+      setAppSettings(as ? JSON.parse(as) : {});
+      setDataLoadedForUser(null);
+    }
+  }, [user]);
+
+  const setUserAndBackup = (newUser: any) => {
+    // We update the state, useEffect will handle loading.
+    setUser(newUser);
+  };
 
   const [currentPage, setCurrentPage] = useState<Page>(() => {
     const saved = localStorage.getItem('habitflow_current_page');
@@ -62,59 +118,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [currentPage]);
 
   const [activeHabitId, setActiveHabitId] = useState<string | null>(null);
-  const [user, setUser] = useState<any | null>(null);
-
-  useEffect(() => {
-    import('../lib/firebase').then(({ auth }) => {
-      if (auth) {
-        auth.onAuthStateChanged((u: any) => {
-          if (u) {
-            const localPic = localStorage.getItem(`profile_pic_${u.uid}`);
-            if (localPic) {
-              u.photoURL = localPic;
-            }
-          }
-          setUser(u ? { ...u } : null);
-        });
-      }
-    }).catch(e => console.error("Firebase not init", e));
-  }, []);
-
-  useEffect(() => {
-    if (!user) return;
-    const backupData = async () => {
-      try {
-        const { db } = await import('../lib/firebase');
-        const { doc, setDoc } = await import('firebase/firestore');
-        await setDoc(doc(db, 'users', user.uid), {
-          habits,
-          journal,
-          journalSettings,
-          appSettings,
-          lastBackup: new Date().toISOString()
-        }, { merge: true });
-      } catch (error) {
-        console.error('Failed to backup data:', error);
-      }
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        backupData();
-      }
-    };
-    const handleBeforeUnload = () => {
-      backupData();
-    };
-
-    window.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    
-    return () => {
-      window.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, [user, habits, journal, journalSettings, appSettings]);
 
   const [darkMode, setDarkMode] = useState<boolean>(() => {
     const saved = localStorage.getItem('habitflow_darkmode');
@@ -143,21 +146,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [swSubscription, setSwSubscription] = useState<any>(null);
 
   useEffect(() => {
-    localStorage.setItem('habitflow_habits', JSON.stringify(habits));
-    syncNotificationSettings(habits);
-  }, [habits]);
+    if (dataLoadedForUser === (user ? user.id : null)) {
+      localStorage.setItem(getStorageKey('habitflow_habits'), JSON.stringify(habits));
+      syncNotificationSettings(habits);
+    }
+  }, [habits, user, dataLoadedForUser]);
 
   useEffect(() => {
-    localStorage.setItem('habitflow_journal', JSON.stringify(journal));
-  }, [journal]);
+    if (dataLoadedForUser === (user ? user.id : null)) {
+      localStorage.setItem(getStorageKey('habitflow_journal'), JSON.stringify(journal));
+    }
+  }, [journal, user, dataLoadedForUser]);
 
   useEffect(() => {
-    localStorage.setItem('habitflow_journal_settings', JSON.stringify(journalSettings));
-  }, [journalSettings]);
+    if (dataLoadedForUser === (user ? user.id : null)) {
+      localStorage.setItem(getStorageKey('habitflow_journal_settings'), JSON.stringify(journalSettings));
+    }
+  }, [journalSettings, user, dataLoadedForUser]);
 
   useEffect(() => {
-    localStorage.setItem('habitflow_app_settings', JSON.stringify(appSettings));
-  }, [appSettings]);
+    if (dataLoadedForUser === (user ? user.id : null)) {
+      localStorage.setItem(getStorageKey('habitflow_app_settings'), JSON.stringify(appSettings));
+    }
+  }, [appSettings, user, dataLoadedForUser]);
 
   const updateJournalSettings = (habitId: string, settings: JournalSettings) => {
     setJournalSettings(prev => ({ ...prev, [habitId]: { ...prev[habitId], ...settings } }));
@@ -445,7 +456,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AppContext.Provider value={{
-      habits, journal, journalSettings, appSettings, currentPage, setCurrentPage, activeHabitId, setActiveHabitId, user,
+      habits, journal, journalSettings, appSettings, currentPage, setCurrentPage, activeHabitId, setActiveHabitId, user, setUser: setUserAndBackup,
       updateJournalSettings, updateAppSettings,
       addHabit, updateHabit, deleteHabit, reorderHabits, toggleHabitDate, updateHabitProgress,
       addJournalEntry, updateJournalEntry, deleteJournalEntry,

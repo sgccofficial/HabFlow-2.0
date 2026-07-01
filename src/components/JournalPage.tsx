@@ -5,6 +5,7 @@ import { formatDate, cn } from '../lib/utils';
 import { format } from 'date-fns';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import remarkBreaks from 'remark-breaks';
 
 export function JournalPage() {
   const { journal, habits, addJournalEntry, updateJournalEntry, deleteJournalEntry, activeHabitId, setActiveHabitId } = useAppContext();
@@ -82,7 +83,8 @@ export function JournalPage() {
     addJournalEntry({
       habitId: activeHabitId || 'general',
       content: newContent.trim(),
-      date: formatDate(new Date())
+      date: formatDate(new Date()),
+      createdAt: Date.now()
     });
     setNewContent('');
   };
@@ -180,9 +182,9 @@ export function JournalPage() {
               rows={4}
             />
             <div className="flex justify-between items-center px-2 pb-2">
-              <span className="text-xs text-gray-400 flex items-center gap-1">
-                <Calendar className="w-3 h-3" />
-                {format(new Date(), 'MMM d, yyyy')}
+              <span className="text-xs text-gray-400 flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 -mt-0.5" />
+                <span>{format(new Date(), 'MMM d, yyyy • h:mm a')}</span>
               </span>
               <button
                 type="submit"
@@ -232,7 +234,7 @@ export function JournalPage() {
                   ) : (
                     <>
                       <div className="flex items-center gap-2 mb-2">
-                        <span className="text-xs font-medium text-gray-500">{format(new Date(entry.date), 'MMM d, yyyy')}</span>
+                        <span className="text-xs font-medium text-gray-500">{entry.createdAt ? format(new Date(entry.createdAt), 'MMM d, yyyy • h:mm a') : format(new Date(entry.date + 'T12:00:00'), 'MMM d, yyyy')}</span>
                         {habit && (
                           <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md" style={{ backgroundColor: habit.color + '20', color: habit.color }}>
                             {habit.name}
@@ -240,11 +242,11 @@ export function JournalPage() {
                         )}
                       </div>
                       <div 
-                        className="prose dark:prose-invert prose-sm max-w-none text-gray-800 dark:text-gray-200"
+                        className="prose dark:prose-invert prose-sm max-w-none text-gray-800 dark:text-gray-200 break-words overflow-hidden"
                         onChange={(e: any) => handleCheckboxToggle(e, entry.id, entry.content)}
                       >
                         <Markdown 
-                          remarkPlugins={[remarkGfm]}
+                          remarkPlugins={[remarkGfm, remarkBreaks]}
                           components={{
                             input: ({ node, checked, disabled, ...props }) => (
                               <input 

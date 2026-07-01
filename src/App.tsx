@@ -11,19 +11,18 @@ import { TimerPage } from './components/TimerPage';
 import { JournalPage } from './components/JournalPage';
 import { AnalyticsPage } from './components/AnalyticsPage';
 import { formatDate, cn } from './lib/utils';
-import { Moon, Sun, Palette, X, User, LogOut, Check, Camera, Mail, Trash2 } from 'lucide-react';
+import { Moon, Sun, Palette, X, User, LogOut, Check, Camera, Mail, Trash2, AtSign } from 'lucide-react';
 import { BACKGROUND_COLORS, BACKGROUND_TEXTURES } from './lib/constants';
-import { auth, signInWithPopup, signInWithRedirect, getRedirectResult, googleProvider, signOut } from './lib/firebase';
-import { updateProfile, updateEmail, deleteUser, verifyBeforeUpdateEmail } from 'firebase/auth';
-
 import { ImageCropper } from './components/ImageCropper';
+import { Eye, EyeOff } from 'lucide-react';
 
 function AppContent() {
-  const { currentPage, darkMode, toggleDarkMode, habits, appSettings, updateAppSettings, journal, user } = useAppContext();
+  const { currentPage, darkMode, toggleDarkMode, habits, appSettings, updateAppSettings, journal, user, setUser } = useAppContext();
   const checkedReminders = useRef<Set<string>>(new Set());
   const [showGlobalSettings, setShowGlobalSettings] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [modalState, setModalState] = useState<{type: 'name' | 'photo_options' | 'email_current' | 'email_new' | 'email_verify' | 'delete' | 'signout' | 'success' | null, input: string}>({type: null, input: ''});
+  const [modalState, setModalState] = useState<{type: 'name' | 'real_name' | 'photo_options' | 'delete' | 'signout' | 'success' | 'auth_options' | 'create_account' | 'sign_in' | null, input: string, nameInput?: string, password?: string, profilePic?: string}>({type: null, input: '', nameInput: '', password: '', profilePic: ''});
+  const [showPassword, setShowPassword] = useState(false);
   const [modalError, setModalError] = useState('');
   
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -35,12 +34,6 @@ function AppContent() {
       setShowProfileMenu(false);
     };
     document.addEventListener('click', handleDocumentClick);
-    
-    // Handle redirect result
-    getRedirectResult(auth).catch((error) => {
-      console.error('Redirect sign-in error:', error);
-      alert(`Sign-in failed: ${error.message}`);
-    });
 
     return () => document.removeEventListener('click', handleDocumentClick);
   }, []);
@@ -58,67 +51,138 @@ function AppContent() {
   };
 
   const handleModalSubmit = async () => {
-    if (!auth.currentUser || !modalState.type) return;
+    if (!modalState.type) return;
     
     try {
-      if (modalState.type === 'name') {
-        if (modalState.input.trim() === '') {
+      const accountsStr = localStorage.getItem('habitflow_accounts');
+      let accounts = accountsStr ? JSON.parse(accountsStr) : [];
+
+      if (modalState.type === 'create_account') {
+        const username = modalState.input.trim();
+        const displayName = modalState.nameInput?.trim() || '';
+        const pwd = modalState.password || '';
+        if (!displayName) {
           setModalError("Name can't be left blank.");
           return;
         }
-        await updateProfile(auth.currentUser, { displayName: modalState.input.trim() });
-        if (user) user.displayName = modalState.input.trim();
+        if (!username) {
+          setModalError("Username can't be left blank.");
+          return;
+        }
+        if (pwd.length < 4 || pwd.length > 16) {
+          setModalError("Password must have 4-16 characters.");
+          return;
+        }
+        if (accounts.find((a: any) => a.username === username || a.name === username)) {
+          setModalError("An account with this username already exists.");
+          return;
+        }
+        const newUser = {
+          id: crypto.randomUUID(),
+          username,
+          name: displayName,
+          password: pwd,
+          photoURL: modalState.profilePic || ''
+        };
+        accounts.push(newUser);
+        localStorage.setItem('habitflow_accounts', JSON.stringify(accounts));
+        
+        setUser(newUser);
+        setModalState({ type: 'success', input: 'Account created successfully!' });
+        setTimeout(() => window.location.reload(), 1500);
+        return;
+      } else if (modalState.type === 'sign_in') {
+        const username = modalState.input.trim();
+        const pwd = modalState.password || '';
+        const account = accounts.find((a: any) => (a.username === username || (a.name === username && !a.username)) && a.password === pwd);
+        if (account) {
+          setUser(account);
+          setModalState({ type: 'success', input: 'Signed in successfully!' });
+          setTimeout(() => window.location.reload(), 1500);
+        } else {
+          if (pwd.length < 4 || pwd.length > 16) {
+            setModalError("Password must have 4-16 characters.");
+            return;
+          }
+          setModalError("Incorrect username or password.");
+        }
+        return;
+      } else if (modalState.type === 'name') {
+        if (!user) return;
+        const newUsername = modalState.input.trim();
+        if (newUsername === '') {
+          setModalError("Username can't be left blank.");
+          return;
+        }
+        if (accounts.find((a: any) => a.id !== user.id && (a.username === newUsername || a.name === newUsername))) {
+          setModalError("An account with this username already exists.");
+          return;
+        }
+        const updatedUser = { ...user, username: newUsername };
+        setUser(updatedUser);
+        const idx = accounts.findIndex((a: any) => a.id === user.id);
+        if (idx !== -1) {
+          accounts[idx].username = newUsername;
+          localStorage.setItem('habitflow_accounts', JSON.stringify(accounts));
+        }
+        setModalState({ type: 'success', input: 'Username updated successfully!' });
+        setTimeout(() => window.location.reload(), 1500);
+        return;
+      } else if (modalState.type === 'real_name') {
+        if (!user) return;
+        const newName = modalState.input.trim();
+        if (newName === '') {
+          setModalError("Name can't be left blank.");
+          return;
+        }
+        const updatedUser = { ...user, name: newName };
+        setUser(updatedUser);
+        const idx = accounts.findIndex((a: any) => a.id === user.id);
+        if (idx !== -1) {
+          accounts[idx].name = newName;
+          localStorage.setItem('habitflow_accounts', JSON.stringify(accounts));
+        }
         setModalState({ type: 'success', input: 'Name updated successfully!' });
         setTimeout(() => window.location.reload(), 1500);
         return;
-      } else if (modalState.type === 'email_current') {
-        if (modalState.input.trim() !== user?.email) {
-          setModalError('Check again!');
-          return;
-        }
-        setModalError('');
-        setModalState({ type: 'email_new', input: '' });
-        return;
-      } else if (modalState.type === 'email_new') {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(modalState.input.trim())) {
-          setModalError('A valid email is needed');
-          return;
-        }
-        setModalError('');
-        await verifyBeforeUpdateEmail(auth.currentUser, modalState.input.trim());
-        setModalState({ type: 'email_verify', input: '' });
-        return;
-      } else if (modalState.type === 'email_verify') {
-        setModalState({ type: null, input: '' });
-        window.location.reload();
-        return;
       } else if (modalState.type === 'delete') {
-        await deleteUser(auth.currentUser);
+        if (!user) return;
+        accounts = accounts.filter((a: any) => a.id !== user.id);
+        localStorage.setItem('habitflow_accounts', JSON.stringify(accounts));
+        localStorage.removeItem(`habitflow_habits_${user.id}`);
+        localStorage.removeItem(`habitflow_journal_${user.id}`);
+        localStorage.removeItem(`habitflow_journal_settings_${user.id}`);
+        localStorage.removeItem(`habitflow_app_settings_${user.id}`);
+        setUser(null);
+        window.location.reload();
       } else if (modalState.type === 'signout') {
-        await signOut(auth);
+        setUser(null);
+        window.location.reload();
       }
       setModalState({ type: null, input: '' });
     } catch (error: any) {
-      if (error.code === 'auth/requires-recent-login') {
-        setModalError("For security reasons, please sign out and sign back in before performing this action.");
-      } else {
-        setModalError("Action failed: " + error.message);
-      }
+      setModalError("Action failed: " + error.message);
     }
   };
 
   const handleUpdateName = (e: React.MouseEvent) => {
     e.stopPropagation();
     setShowProfileMenu(false);
-    if (!auth.currentUser) return;
-    setModalState({ type: 'name', input: user?.displayName || '' });
+    if (!user) return;
+    setModalState({ type: 'name', input: user.username || '' });
+  };
+
+  const handleUpdateRealName = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowProfileMenu(false);
+    if (!user) return;
+    setModalState({ type: 'real_name', input: user.name || '' });
   };
 
   const handleUpdatePhoto = (e: React.MouseEvent) => {
     e.stopPropagation();
     setShowProfileMenu(false);
-    if (!auth.currentUser) return;
+    if (!user) return;
     setModalState({ type: 'photo_options', input: '' });
   };
 
@@ -132,15 +196,22 @@ function AppContent() {
 
   const handleCropSubmit = async (croppedBase64: string) => {
     setSelectedImageFile(null);
-    if (!auth.currentUser) return;
-    try {
-      try {
-        await updateProfile(auth.currentUser, { photoURL: croppedBase64 });
-      } catch (e) {
-        console.warn('Firebase Auth photo limit reached, using local storage fallback', e);
+    if (!user) {
+      if (modalState.type === 'create_account') {
+        setModalState({ ...modalState, profilePic: croppedBase64 });
       }
-      if (user) user.photoURL = croppedBase64;
-      localStorage.setItem(`profile_pic_${auth.currentUser.uid}`, croppedBase64);
+      return;
+    }
+    try {
+      const accountsStr = localStorage.getItem('habitflow_accounts');
+      let accounts = accountsStr ? JSON.parse(accountsStr) : [];
+      const updatedUser = { ...user, photoURL: croppedBase64 };
+      setUser(updatedUser);
+      const idx = accounts.findIndex((a: any) => a.id === user.id);
+      if (idx !== -1) {
+        accounts[idx].photoURL = croppedBase64;
+        localStorage.setItem('habitflow_accounts', JSON.stringify(accounts));
+      }
       setModalState({ type: 'success', input: 'Profile picture updated!' });
       setTimeout(() => window.location.reload(), 1500);
     } catch (error: any) {
@@ -149,15 +220,17 @@ function AppContent() {
   };
 
   const handleDeletePhoto = async () => {
-    if (!auth.currentUser) return;
+    if (!user) return;
     try {
-      try {
-        await updateProfile(auth.currentUser, { photoURL: "" });
-      } catch (e) {
-        console.warn('Firebase Auth photo removal error', e);
+      const accountsStr = localStorage.getItem('habitflow_accounts');
+      let accounts = accountsStr ? JSON.parse(accountsStr) : [];
+      const updatedUser = { ...user, photoURL: "" };
+      setUser(updatedUser);
+      const idx = accounts.findIndex((a: any) => a.id === user.id);
+      if (idx !== -1) {
+        accounts[idx].photoURL = "";
+        localStorage.setItem('habitflow_accounts', JSON.stringify(accounts));
       }
-      if (user) user.photoURL = "";
-      localStorage.removeItem(`profile_pic_${auth.currentUser.uid}`);
       setModalState({ type: 'success', input: 'Profile picture removed!' });
       setTimeout(() => window.location.reload(), 1500);
     } catch (error: any) {
@@ -165,24 +238,17 @@ function AppContent() {
     }
   };
 
-  const handleUpdateEmail = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setShowProfileMenu(false);
-    if (!auth.currentUser) return;
-    setModalState({ type: 'email_current', input: '' });
-  };
-
   const handleDeleteAccount = (e: React.MouseEvent) => {
     e.stopPropagation();
     setShowProfileMenu(false);
-    if (!auth.currentUser) return;
+    if (!user) return;
     setModalState({ type: 'delete', input: '' });
   };
 
   const handleSignOutConfirm = (e: React.MouseEvent) => {
     e.stopPropagation();
     setShowProfileMenu(false);
-    if (!auth.currentUser) return;
+    if (!user) return;
     setModalState({ type: 'signout', input: '' });
   };
 
@@ -310,7 +376,7 @@ function AppContent() {
               </button>
               
               {showProfileMenu && (
-                <div onClick={(e) => e.stopPropagation()} className="absolute top-12 right-0 w-64 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden z-[70] text-gray-900 dark:text-white">
+                <div onClick={(e) => e.stopPropagation()} className="absolute top-12 right-0 min-w-[16rem] w-max max-w-[90vw] sm:max-w-sm bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden z-[70] text-gray-900 dark:text-white">
                   <div className="p-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm flex shrink-0 items-center justify-center bg-gray-100 dark:bg-gray-800">
                       {user.photoURL ? (
@@ -335,28 +401,28 @@ function AppContent() {
                       </div>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold truncate">{user.displayName}</p>
-                      <p className="text-xs text-gray-500 truncate mt-0.5">{user.email}</p>
+                      <p className="text-sm font-bold break-words whitespace-normal">{user.name}</p>
+                      <p className="text-xs text-gray-500 break-all whitespace-normal mt-0.5">@{user.username}</p>
                     </div>
                   </div>
                   <div className="p-2 space-y-1">
                     <button 
-                      onClick={handleUpdateName}
+                      onClick={handleUpdateRealName}
                       className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors flex items-center gap-2"
                     >
                       <User className="w-4 h-4" /> Change Name
+                    </button>
+                    <button 
+                      onClick={handleUpdateName}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors flex items-center gap-2"
+                    >
+                      <AtSign className="w-4 h-4" /> Change Username
                     </button>
                     <button 
                       onClick={handleUpdatePhoto}
                       className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors flex items-center gap-2"
                     >
                       <Camera className="w-4 h-4" /> Change Profile Picture
-                    </button>
-                    <button 
-                      onClick={handleUpdateEmail}
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors flex items-center gap-2"
-                    >
-                      <Mail className="w-4 h-4" /> Update Email
                     </button>
                   </div>
                   <div className="h-px bg-gray-100 dark:bg-gray-700 w-full" />
@@ -380,18 +446,7 @@ function AppContent() {
           ) : (
             <button 
               onClick={() => {
-                signInWithPopup(auth, googleProvider).catch((error: any) => {
-                  console.error('Sign-in error:', error);
-                  if (error.code === 'auth/popup-closed-by-user' || error.code === 'auth/popup-blocked') {
-                    // Fallback for mobile/external browsers
-                    signInWithRedirect(auth, googleProvider).catch((redirectError) => {
-                       console.error('Redirect sign-in error:', redirectError);
-                       alert(`Sign-in failed: ${redirectError.message}`);
-                    });
-                  } else {
-                    alert(`Sign-in failed: ${error.message}\n\nPlease add these URLs to Authorized Domains in Firebase Console (Authentication > Settings > Authorized domains):\n1. ais-dev-4xi2zilhvk5rqf7rk3rqxs-1030600014189.asia-southeast1.run.app\n2. ais-pre-4xi2zilhvk5rqf7rk3rqxs-1030600014189.asia-southeast1.run.app`);
-                  }
-                });
+                setModalState({ type: 'auth_options', input: '' });
               }}
               className="pointer-events-auto flex items-center gap-2 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow transition-colors text-sm font-medium h-10"
             >
@@ -483,19 +538,68 @@ function AppContent() {
             ) : (
               <>
                 <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
-                  {modalState.type === 'name' && 'Change Name'}
+                  {modalState.type === 'name' && 'Change Username'}
+                  {modalState.type === 'real_name' && 'Change Name'}
                   {modalState.type === 'photo_options' && 'Profile Picture'}
-                  {modalState.type === 'email_current' && 'Confirm Current Email'}
-                  {modalState.type === 'email_new' && 'Enter New Email'}
-                  {modalState.type === 'email_verify' && 'Verify Email'}
                   {modalState.type === 'delete' && 'Delete Account'}
                   {modalState.type === 'signout' && 'Sign Out'}
+                  {modalState.type === 'auth_options' && 'Sign In'}
+                  {modalState.type === 'create_account' && 'Create Account'}
+                  {modalState.type === 'sign_in' && 'Sign In'}
                 </h3>
                 
-                {['name', 'email_current', 'email_new'].includes(modalState.type) && (
-              <div className="mb-4">
+                {modalState.type === 'auth_options' && (
+                  <div className="flex flex-col gap-3 mb-2">
+                    <button 
+                      onClick={() => setModalState({ type: 'sign_in', input: '', password: '' })}
+                      className="w-full px-4 py-3 bg-indigo-600 text-white font-medium rounded-xl hover:bg-indigo-700 transition text-center"
+                    >
+                      Sign In
+                    </button>
+                    <button 
+                      onClick={() => setModalState({ type: 'create_account', input: '', password: '' })}
+                      className="w-full px-4 py-3 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 font-medium rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition text-center"
+                    >
+                      Create Account
+                    </button>
+                  </div>
+                )}
+
+                {['name', 'real_name', 'create_account', 'sign_in'].includes(modalState.type) && (
+              <div className="mb-4 space-y-4">
+                {modalState.type === 'create_account' && (
+                  <div className="flex justify-center mb-6">
+                    <button 
+                      onClick={() => {
+                        if (fileInputRef.current) fileInputRef.current.click();
+                      }}
+                      className="w-24 h-24 rounded-full bg-gray-100 dark:bg-gray-800 border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center overflow-hidden hover:bg-gray-200 dark:hover:bg-gray-700 transition"
+                    >
+                      {modalState.profilePic ? (
+                        <img src={modalState.profilePic} alt="Profile" className="w-full h-full object-cover" />
+                      ) : (
+                        <Camera className="w-8 h-8 text-gray-400" />
+                      )}
+                    </button>
+                  </div>
+                )}
+                {modalState.type === 'create_account' && (
+                  <input
+                    type="text"
+                    maxLength={30}
+                    value={modalState.nameInput || ''}
+                    onChange={(e) => {
+                      setModalState({ ...modalState, nameInput: e.target.value });
+                      setModalError('');
+                    }}
+                    className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-gray-900 dark:text-white"
+                    placeholder="Enter your name"
+                    autoFocus
+                  />
+                )}
                 <input
-                  type={modalState.type.startsWith('email') ? 'email' : 'text'}
+                  type="text"
+                  maxLength={30}
                   value={modalState.input}
                   onChange={(e) => {
                     setModalState({ ...modalState, input: e.target.value });
@@ -503,12 +607,38 @@ function AppContent() {
                   }}
                   className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-gray-900 dark:text-white"
                   placeholder={
-                    modalState.type === 'email_current' ? 'Enter current email' :
-                    modalState.type === 'email_new' ? 'Enter new email' :
-                    `Enter new ${modalState.type}`
+                    modalState.type === 'create_account' ? 'Enter your username' :
+                    modalState.type === 'sign_in' ? 'Enter your username' :
+                    modalState.type === 'real_name' ? 'Enter your name' :
+                    `Enter new username`
                   }
-                  autoFocus
+                  autoFocus={modalState.type !== 'create_account'}
                 />
+                
+                {['create_account', 'sign_in'].includes(modalState.type) && (
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={modalState.password || ''}
+                      onChange={(e) => {
+                        setModalState({ ...modalState, password: e.target.value });
+                        setModalError('');
+                      }}
+                      onPaste={(e) => e.preventDefault()}
+                      onCopy={(e) => e.preventDefault()}
+                      maxLength={16}
+                      className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-gray-900 dark:text-white"
+                      placeholder={modalState.type === 'sign_in' ? 'Password' : 'Password (4-16 chars)'}
+                    />
+                    <button 
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                    >
+                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -516,12 +646,6 @@ function AppContent() {
               <p className="text-red-500 text-sm mb-4 text-center">{modalError}</p>
             )}
 
-            {modalState.type === 'email_verify' && (
-              <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
-                Verification Link Sent. Please check your inbox and tap the link to change your email.
-              </p>
-            )}
-            
             {modalState.type === 'photo_options' && (
               <div className="flex flex-col gap-2 mb-2">
                 <button 
@@ -570,20 +694,23 @@ function AppContent() {
                   onClick={() => {
                     setModalState({ type: null, input: '' });
                     setModalError('');
+                    setShowPassword(false);
                   }}
                   className="px-4 py-2 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
                 >
                   Cancel
                 </button>
-                <button
-                  onClick={handleModalSubmit}
-                  className={cn(
-                    "px-4 py-2 rounded-xl text-sm font-medium text-white transition",
-                    ['delete', 'signout'].includes(modalState.type) ? "bg-red-600 hover:bg-red-700" : "bg-indigo-600 hover:bg-indigo-700"
-                  )}
-                >
-                  {modalState.type === 'email_current' || modalState.type === 'email_new' ? 'Next' : modalState.type === 'email_verify' ? 'Done' : 'Confirm'}
-                </button>
+                {modalState.type !== 'auth_options' && (
+                  <button
+                    onClick={handleModalSubmit}
+                    className={cn(
+                      "px-4 py-2 rounded-xl text-sm font-medium text-white transition",
+                      ['delete', 'signout'].includes(modalState.type) ? "bg-red-600 hover:bg-red-700" : "bg-indigo-600 hover:bg-indigo-700"
+                    )}
+                  >
+                    {modalState.type === 'create_account' ? 'Create' : modalState.type === 'sign_in' ? 'Sign In' : 'Confirm'}
+                  </button>
+                )}
               </div>
             )}
             </>

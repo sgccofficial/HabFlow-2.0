@@ -413,6 +413,7 @@ export function TimerPage() {
                   <div className="flex flex-col items-center">
                     <input 
                       type="text"
+                      maxLength={30}
                       value={inputValue}
                       onChange={(e) => {
                         let digits = e.target.value.replace(/\D/g, '');

@@ -113,7 +113,7 @@ export function EditHabitModal({ habit, onClose }: EditModalProps) {
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
             <input 
               type="text" 
-              maxLength={25}
+              maxLength={30}
               value={name}
               onChange={(e) => {
                 setName(e.target.value);
