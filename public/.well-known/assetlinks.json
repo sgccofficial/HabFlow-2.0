@@ -3,6 +3,6 @@
       "target": {
         "namespace": "android_app",
         "package_name": "com.onrender.habflow_2_0.twa",
-        "sha256_cert_fingerprints": ["2E:29:1C:36:82:92:93:11:C3:B4:49:8C:B7:82:FB:3B:20:0E:E2:86:5D:41:5A:84:7F:0C:BB:33:5D:27:8A:62"]
+        "sha256_cert_fingerprints": ["75:6C:86:13:C1:40:F3:D6:D9:AC:59:3F:58:2D:F7:73:5D:21:DD:6A:17:5A:CE:BB:3E:89:76:57:D1:F4:D5:76"]
       }
     }]
