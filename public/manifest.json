@@ -34,28 +34,28 @@
   ],
   "screenshots": [
     {
-      "src": "screenshot1.png",
+      "src": "/screenshot1.png",
       "sizes": "1080x1920",
       "type": "image/png",
       "form_factor": "narrow",
       "label": "Habits tracking"
     },
     {
-      "src": "screenshot2.png",
+      "src": "/screenshot2.png",
       "sizes": "1080x1920",
       "type": "image/png",
       "form_factor": "narrow",
       "label": "Journaling"
     },
     {
-      "src": "screenshot3.png",
+      "src": "/screenshot3.png",
       "sizes": "1080x1920",
       "type": "image/png",
       "form_factor": "narrow",
       "label": "Timers"
     },
     {
-      "src": "screenshot4.png",
+      "src": "/screenshot4.png",
       "sizes": "1080x1920",
       "type": "image/png",
       "form_factor": "narrow",
