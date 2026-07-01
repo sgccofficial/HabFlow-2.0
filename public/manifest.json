@@ -24,28 +24,42 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    },
+    {
+      "src": "badge.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "badge"
     }
   ],
   "screenshots": [
     {
       "src": "screenshot1.png",
       "sizes": "1080x1920",
-      "type": "image/png"
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Habits tracking"
     },
     {
       "src": "screenshot2.png",
       "sizes": "1080x1920",
-      "type": "image/png"
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Journaling"
     },
     {
       "src": "screenshot3.png",
       "sizes": "1080x1920",
-      "type": "image/png"
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Timers"
     },
     {
       "src": "screenshot4.png",
       "sizes": "1080x1920",
-      "type": "image/png"
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Analytics"
     }
   ],
   "share_target": {
@@ -63,21 +77,21 @@
       "name": "New Journal Entry",
       "short_name": "Journal",
       "description": "Write a new journal entry",
-      "url": "/",
+      "url": "/?page=journal",
       "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
     },
     {
       "name": "New Habit",
       "short_name": "Habit",
       "description": "Create a new habit to track",
-      "url": "/",
+      "url": "/?page=habits",
       "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
     },
     {
       "name": "New Timer",
       "short_name": "Timer",
       "description": "Start a new focus timer",
-      "url": "/",
+      "url": "/?page=timer",
       "icons": [{ "src": "icon-192.png", "sizes": "192x192" }]
     }
   ],

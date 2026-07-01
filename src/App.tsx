@@ -34,11 +34,24 @@ function AppContent() {
     const title = params.get('title') || '';
     const text = params.get('text') || '';
     const url = params.get('url') || '';
+    const page = params.get('page');
+
+    if (page && ['habits', 'timer', 'journal', 'analytics'].includes(page)) {
+      setCurrentPage(page as any);
+      // clean up URL
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete('page');
+      window.history.replaceState({}, document.title, newUrl.pathname + newUrl.search);
+    }
 
     if (title || text || url) {
       setShareData({ title, text, url });
       // clean up the URL without refreshing
-      window.history.replaceState({}, document.title, window.location.pathname);
+      const newUrl = new URL(window.location.href);
+      newUrl.searchParams.delete('title');
+      newUrl.searchParams.delete('text');
+      newUrl.searchParams.delete('url');
+      window.history.replaceState({}, document.title, newUrl.pathname + newUrl.search);
     }
   }, []);
 
@@ -290,7 +303,8 @@ function AppContent() {
             if ('Notification' in window && Notification.permission === 'granted') {
               new Notification('Habit Reminder', {
                 body: `Don't forget to complete: ${habit.name}`,
-                icon: '/icon.png', // Fallback
+                icon: '/icon-192.png', // Fallback
+                badge: '/badge.png'
               });
             }
             checkedReminders.current.add(reminderId);
