@@ -27,35 +27,35 @@
     },
     {
       "src": "badge.png",
-      "sizes": "72x72",
+      "sizes": "952x952",
       "type": "image/png",
       "purpose": "badge"
     }
   ],
   "screenshots": [
     {
-      "src": "/screenshot1.png",
+      "src": "screenshot1.png",
       "sizes": "1080x2072",
       "type": "image/png",
       "form_factor": "narrow",
       "label": "Habits tracking"
     },
     {
-      "src": "/screenshot2.jpg",
+      "src": "screenshot2.jpg",
       "sizes": "1080x2072",
       "type": "image/jpeg",
       "form_factor": "narrow",
       "label": "Journaling"
     },
     {
-      "src": "/screenshot3.png",
+      "src": "screenshot3.png",
       "sizes": "1080x2072",
       "type": "image/png",
       "form_factor": "narrow",
       "label": "Timers"
     },
     {
-      "src": "/screenshot4.jpg",
+      "src": "screenshot4.jpg",
       "sizes": "1080x2072",
       "type": "image/jpeg",
       "form_factor": "narrow",
