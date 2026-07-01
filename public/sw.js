@@ -3,8 +3,7 @@ self.addEventListener('push', e => {
   console.log('Push Recieved...');
   self.registration.showNotification(data.title, {
     body: data.body,
-    icon: '/icon-192.png',
-    badge: '/badge-192.png'
+    icon: '/icon-192.png'
   });
 });
 
@@ -15,8 +14,6 @@ self.addEventListener('install', (e) => {
       return cache.addAll([
         '/',
         '/index.html',
-        '/icon-192.png',
-        '/icon-512.png',
         '/manifest.json'
       ]);
     })
