@@ -16,8 +16,33 @@
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').then(registration => {
+          navigator.serviceWorker.register('/sw.js').then(async (registration) => {
             console.log('SW registered: ', registration);
+            
+            // Register Background Sync
+            if ('sync' in registration) {
+              try {
+                await registration.sync.register('sync-data');
+                console.log('Background Sync registered');
+              } catch (err) {
+                console.log('Background Sync registration failed: ', err);
+              }
+            }
+
+            // Register Periodic Sync
+            if ('periodicSync' in registration) {
+              try {
+                const status = await navigator.permissions.query({ name: 'periodic-background-sync' });
+                if (status.state === 'granted') {
+                  await registration.periodicSync.register('sync-daily-data', {
+                    minInterval: 24 * 60 * 60 * 1000 // 1 day in milliseconds
+                  });
+                  console.log('Periodic Sync registered');
+                }
+              } catch (err) {
+                console.log('Periodic Sync registration failed: ', err);
+              }
+            }
           }).catch(registrationError => {
             console.log('SW registration failed: ', registrationError);
           });
