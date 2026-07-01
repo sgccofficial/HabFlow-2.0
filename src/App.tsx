@@ -290,7 +290,8 @@ function AppContent() {
             if ('Notification' in window && Notification.permission === 'granted') {
               new Notification('Habit Reminder', {
                 body: `Don't forget to complete: ${habit.name}`,
-                icon: '/icon-192.png', // Fallback
+                icon: '/icon-192.png',
+                badge: '/badge-192.png'
               });
             }
             checkedReminders.current.add(reminderId);
