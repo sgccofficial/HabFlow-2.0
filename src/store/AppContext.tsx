@@ -78,17 +78,35 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // When user changes, reload data
   useEffect(() => {
+    let unsubscribe = () => {};
     if (user) {
       localStorage.setItem('habitflow_current_user', JSON.stringify(user));
-      const h = localStorage.getItem(`habitflow_habits_${user.id}`);
-      setHabits(h ? JSON.parse(h) : []);
-      const j = localStorage.getItem(`habitflow_journal_${user.id}`);
-      setJournal(j ? JSON.parse(j) : []);
-      const js = localStorage.getItem(`habitflow_journal_settings_${user.id}`);
-      setJournalSettings(js ? JSON.parse(js) : {});
-      const as = localStorage.getItem(`habitflow_app_settings_${user.id}`);
-      setAppSettings(as ? JSON.parse(as) : {});
-      setDataLoadedForUser(user.id);
+      
+      const loadFirebaseData = async () => {
+        try {
+          const { db } = await import('../lib/firebase');
+          const { doc, getDoc, setDoc } = await import('firebase/firestore');
+          
+          const userDoc = await getDoc(doc(db, 'users', user.id));
+          if (userDoc.exists()) {
+            const data = userDoc.data();
+            if (data.habits) setHabits(data.habits);
+            if (data.journal) setJournal(data.journal);
+            if (data.journalSettings) setJournalSettings(data.journalSettings);
+            if (data.appSettings) setAppSettings(data.appSettings);
+          } else {
+            // Migrate local to remote if there is anything
+            const h = localStorage.getItem(`habitflow_habits_${user.id}`);
+            if (h) setHabits(JSON.parse(h));
+            const j = localStorage.getItem(`habitflow_journal_${user.id}`);
+            if (j) setJournal(JSON.parse(j));
+          }
+          setDataLoadedForUser(user.id);
+        } catch (error) {
+          console.error("Failed to load Firebase data", error);
+        }
+      };
+      loadFirebaseData();
     } else {
       localStorage.removeItem('habitflow_current_user');
       const h = localStorage.getItem('habitflow_habits');
@@ -101,7 +119,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setAppSettings(as ? JSON.parse(as) : {});
       setDataLoadedForUser(null);
     }
+    return () => unsubscribe();
   }, [user]);
+
+  const saveToFirebase = async (dataToUpdate: any) => {
+    if (user && dataLoadedForUser === user.id) {
+      try {
+        const { db } = await import('../lib/firebase');
+        const { doc, setDoc } = await import('firebase/firestore');
+        await setDoc(doc(db, 'users', user.id), dataToUpdate, { merge: true });
+      } catch (error) {
+        console.error("Failed to save to Firebase", error);
+      }
+    }
+  };
 
   const setUserAndBackup = (newUser: any) => {
     // We update the state, useEffect will handle loading.
@@ -148,6 +179,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (dataLoadedForUser === (user ? user.id : null)) {
       localStorage.setItem(getStorageKey('habitflow_habits'), JSON.stringify(habits));
+      if (user) saveToFirebase({ habits });
       syncNotificationSettings(habits);
     }
   }, [habits, user, dataLoadedForUser]);
@@ -155,18 +187,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (dataLoadedForUser === (user ? user.id : null)) {
       localStorage.setItem(getStorageKey('habitflow_journal'), JSON.stringify(journal));
+      if (user) saveToFirebase({ journal });
     }
   }, [journal, user, dataLoadedForUser]);
 
   useEffect(() => {
     if (dataLoadedForUser === (user ? user.id : null)) {
       localStorage.setItem(getStorageKey('habitflow_journal_settings'), JSON.stringify(journalSettings));
+      if (user) saveToFirebase({ journalSettings });
     }
   }, [journalSettings, user, dataLoadedForUser]);
 
   useEffect(() => {
     if (dataLoadedForUser === (user ? user.id : null)) {
       localStorage.setItem(getStorageKey('habitflow_app_settings'), JSON.stringify(appSettings));
+      if (user) saveToFirebase({ appSettings });
     }
   }, [appSettings, user, dataLoadedForUser]);
 

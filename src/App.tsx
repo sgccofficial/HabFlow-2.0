@@ -81,9 +81,6 @@ function AppContent() {
     if (!modalState.type) return;
     
     try {
-      const accountsStr = localStorage.getItem('habitflow_accounts');
-      let accounts = accountsStr ? JSON.parse(accountsStr) : [];
-
       if (modalState.type === 'create_account') {
         const username = modalState.input.trim();
         const displayName = modalState.nameInput?.trim() || '';
@@ -104,33 +101,66 @@ function AppContent() {
           setModalError("Password must have 4-16 characters.");
           return;
         }
-        if (accounts.find((a: any) => a.username === username || a.name === username)) {
-          setModalError("An account with this username already exists.");
-          return;
-        }
-        const newUser = {
-          id: crypto.randomUUID(),
-          username,
-          name: displayName,
-          password: pwd,
-          photoURL: modalState.profilePic || ''
-        };
-        accounts.push(newUser);
-        localStorage.setItem('habitflow_accounts', JSON.stringify(accounts));
         
-        setUser(newUser);
-        setModalState({ type: 'success', input: 'Account created successfully!' });
-        setTimeout(() => window.location.reload(), 1500);
+        try {
+          const { createUserWithEmailAndPassword } = await import('firebase/auth');
+          const { auth, db } = await import('./lib/firebase');
+          const { doc, setDoc, getDoc } = await import('firebase/firestore');
+          
+          const userDoc = await getDoc(doc(db, 'usernames', username.toLowerCase()));
+          if (userDoc.exists()) {
+            setModalError("An account with this username already exists.");
+            return;
+          }
+          
+          const email = `${username.toLowerCase()}@habitflow.local`;
+          const userCredential = await createUserWithEmailAndPassword(auth, email, pwd);
+          const uid = userCredential.user.uid;
+          
+          const newUser = {
+            id: uid,
+            username,
+            name: displayName,
+            photoURL: modalState.profilePic || ''
+          };
+          
+          await setDoc(doc(db, 'usernames', username.toLowerCase()), { uid });
+          await setDoc(doc(db, 'users', uid), newUser);
+          
+          setUser(newUser);
+          setModalState({ type: 'success', input: 'Account created successfully!' });
+          setTimeout(() => window.location.reload(), 1500);
+        } catch (error: any) {
+          setModalError(error.message);
+        }
         return;
       } else if (modalState.type === 'sign_in') {
         const username = modalState.input.trim();
         const pwd = modalState.password || '';
-        const account = accounts.find((a: any) => (a.username === username || (a.name === username && !a.username)) && a.password === pwd);
-        if (account) {
-          setUser(account);
+        if (!username) {
+          setModalError("Username can't be left blank.");
+          return;
+        }
+        
+        try {
+          const { signInWithEmailAndPassword } = await import('firebase/auth');
+          const { auth, db } = await import('./lib/firebase');
+          const { doc, getDoc } = await import('firebase/firestore');
+          
+          const email = `${username.toLowerCase()}@habitflow.local`;
+          const userCredential = await signInWithEmailAndPassword(auth, email, pwd);
+          const uid = userCredential.user.uid;
+          
+          const userDoc = await getDoc(doc(db, 'users', uid));
+          if (userDoc.exists()) {
+            setUser(userDoc.data());
+          } else {
+            setUser({ id: uid, username, name: username, photoURL: '' });
+          }
+          
           setModalState({ type: 'success', input: 'Signed in successfully!' });
           setTimeout(() => window.location.reload(), 1500);
-        } else {
+        } catch (error: any) {
           if (pwd.length < 4 || pwd.length > 16) {
             setModalError("Password must have 4-16 characters.");
             return;
@@ -149,19 +179,31 @@ function AppContent() {
           setModalError("Username can only contain letters, numbers, periods, and underscores.");
           return;
         }
-        if (accounts.find((a: any) => a.id !== user.id && (a.username === newUsername || a.name === newUsername))) {
-          setModalError("An account with this username already exists.");
-          return;
+        
+        try {
+          const { db } = await import('./lib/firebase');
+          const { doc, getDoc, setDoc, deleteDoc } = await import('firebase/firestore');
+          
+          if (user.username.toLowerCase() !== newUsername.toLowerCase()) {
+            const userDoc = await getDoc(doc(db, 'usernames', newUsername.toLowerCase()));
+            if (userDoc.exists()) {
+              setModalError("An account with this username already exists.");
+              return;
+            }
+            
+            await deleteDoc(doc(db, 'usernames', user.username.toLowerCase()));
+            await setDoc(doc(db, 'usernames', newUsername.toLowerCase()), { uid: user.id });
+          }
+          
+          const updatedUser = { ...user, username: newUsername };
+          await setDoc(doc(db, 'users', user.id), updatedUser, { merge: true });
+          
+          setUser(updatedUser);
+          setModalState({ type: 'success', input: 'Username updated successfully!' });
+          setTimeout(() => window.location.reload(), 1500);
+        } catch (error: any) {
+          setModalError("Action failed: " + error.message);
         }
-        const updatedUser = { ...user, username: newUsername };
-        setUser(updatedUser);
-        const idx = accounts.findIndex((a: any) => a.id === user.id);
-        if (idx !== -1) {
-          accounts[idx].username = newUsername;
-          localStorage.setItem('habitflow_accounts', JSON.stringify(accounts));
-        }
-        setModalState({ type: 'success', input: 'Username updated successfully!' });
-        setTimeout(() => window.location.reload(), 1500);
         return;
       } else if (modalState.type === 'real_name') {
         if (!user) return;
@@ -170,29 +212,50 @@ function AppContent() {
           setModalError("Name can't be left blank.");
           return;
         }
-        const updatedUser = { ...user, name: newName };
-        setUser(updatedUser);
-        const idx = accounts.findIndex((a: any) => a.id === user.id);
-        if (idx !== -1) {
-          accounts[idx].name = newName;
-          localStorage.setItem('habitflow_accounts', JSON.stringify(accounts));
+        
+        try {
+          const { db } = await import('./lib/firebase');
+          const { doc, setDoc } = await import('firebase/firestore');
+          
+          const updatedUser = { ...user, name: newName };
+          await setDoc(doc(db, 'users', user.id), updatedUser, { merge: true });
+          
+          setUser(updatedUser);
+          setModalState({ type: 'success', input: 'Name updated successfully!' });
+          setTimeout(() => window.location.reload(), 1500);
+        } catch (error: any) {
+          setModalError("Action failed: " + error.message);
         }
-        setModalState({ type: 'success', input: 'Name updated successfully!' });
-        setTimeout(() => window.location.reload(), 1500);
         return;
       } else if (modalState.type === 'delete') {
         if (!user) return;
-        accounts = accounts.filter((a: any) => a.id !== user.id);
-        localStorage.setItem('habitflow_accounts', JSON.stringify(accounts));
-        localStorage.removeItem(`habitflow_habits_${user.id}`);
-        localStorage.removeItem(`habitflow_journal_${user.id}`);
-        localStorage.removeItem(`habitflow_journal_settings_${user.id}`);
-        localStorage.removeItem(`habitflow_app_settings_${user.id}`);
-        setUser(null);
-        window.location.reload();
+        
+        try {
+          const { auth, db } = await import('./lib/firebase');
+          const { doc, deleteDoc } = await import('firebase/firestore');
+          
+          await deleteDoc(doc(db, 'usernames', user.username.toLowerCase()));
+          await deleteDoc(doc(db, 'users', user.id));
+          if (auth.currentUser) {
+            await auth.currentUser.delete();
+          }
+          
+          setUser(null);
+          localStorage.removeItem(`habitflow_current_user`);
+          window.location.reload();
+        } catch (error: any) {
+          setModalError("Action failed: " + error.message);
+        }
+        return;
       } else if (modalState.type === 'signout') {
+        try {
+          const { auth } = await import('./lib/firebase');
+          await auth.signOut();
+        } catch (e) {}
         setUser(null);
+        localStorage.removeItem(`habitflow_current_user`);
         window.location.reload();
+        return;
       }
       setModalState({ type: null, input: '' });
     } catch (error: any) {
@@ -238,15 +301,13 @@ function AppContent() {
       return;
     }
     try {
-      const accountsStr = localStorage.getItem('habitflow_accounts');
-      let accounts = accountsStr ? JSON.parse(accountsStr) : [];
+      const { db } = await import('./lib/firebase');
+      const { doc, setDoc } = await import('firebase/firestore');
+      
       const updatedUser = { ...user, photoURL: croppedBase64 };
+      await setDoc(doc(db, 'users', user.id), updatedUser, { merge: true });
+      
       setUser(updatedUser);
-      const idx = accounts.findIndex((a: any) => a.id === user.id);
-      if (idx !== -1) {
-        accounts[idx].photoURL = croppedBase64;
-        localStorage.setItem('habitflow_accounts', JSON.stringify(accounts));
-      }
       setModalState({ type: 'success', input: 'Profile picture updated!' });
       setTimeout(() => window.location.reload(), 1500);
     } catch (error: any) {
@@ -257,15 +318,13 @@ function AppContent() {
   const handleDeletePhoto = async () => {
     if (!user) return;
     try {
-      const accountsStr = localStorage.getItem('habitflow_accounts');
-      let accounts = accountsStr ? JSON.parse(accountsStr) : [];
+      const { db } = await import('./lib/firebase');
+      const { doc, setDoc } = await import('firebase/firestore');
+      
       const updatedUser = { ...user, photoURL: "" };
+      await setDoc(doc(db, 'users', user.id), updatedUser, { merge: true });
+      
       setUser(updatedUser);
-      const idx = accounts.findIndex((a: any) => a.id === user.id);
-      if (idx !== -1) {
-        accounts[idx].photoURL = "";
-        localStorage.setItem('habitflow_accounts', JSON.stringify(accounts));
-      }
       setModalState({ type: 'success', input: 'Profile picture removed!' });
       setTimeout(() => window.location.reload(), 1500);
     } catch (error: any) {

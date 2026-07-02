@@ -687,6 +687,7 @@ export function HabitsPage() {
                                   curr.setDate(curr.getDate() + 1);
                                 }
                               }
+                              newFrozenDates.delete(todayStr); // Ensure today is not frozen when unfreezing
                               updateHabit(h.id, { isFrozen: false, frozenSince: undefined, frozenDates: Array.from(newFrozenDates) });
                             }
                           }
