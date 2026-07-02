@@ -297,7 +297,7 @@ function AppContent() {
       habits.forEach(habit => {
         const isTargetDay = habit.targetDays ? habit.targetDays.includes(currentDayOfWeek) : true;
         const reminderId = `${habit.id}-${todayStr}`;
-        if (isTargetDay && !checkedReminders.current.has(reminderId)) {
+        if (isTargetDay && !habit.isFrozen && !checkedReminders.current.has(reminderId)) {
           if (!habit.dates.includes(todayStr) && habit.reminderTime === currentTimeStr) {
             // Trigger local notification
             if ('Notification' in window && Notification.permission === 'granted') {

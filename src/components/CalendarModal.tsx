@@ -100,8 +100,8 @@ export function CalendarModal({ habit, onClose }: CalendarModalProps) {
               
               if (isCurrentMonth) {
                 if (isFrozen) {
-                  bgColor = "bg-blue-100 dark:bg-blue-900/40";
-                  textColor = "text-blue-500 font-bold";
+                  bgColor = "bg-blue-400 dark:bg-blue-500";
+                  textColor = "text-white font-bold";
                 } else if (isCompleted) {
                   bgColor = "bg-green-100 dark:bg-green-900/40";
                   textColor = "text-green-700 dark:text-green-400 font-bold";

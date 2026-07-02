@@ -170,7 +170,7 @@ export function EditHabitModal({ habit, onClose }: EditModalProps) {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Goal Settings</label>
-            <div className="flex gap-2 mb-6">
+            <div className={cn("flex gap-2 mb-6", habit.isFrozen && "opacity-50 pointer-events-none")}>
               <button
                 type="button"
                 onClick={() => setHasDaily(!hasDaily)}
@@ -210,7 +210,7 @@ export function EditHabitModal({ habit, onClose }: EditModalProps) {
             </div>
 
             {hasWeekly && (
-              <div className="mb-6 animate-in slide-in-from-top-2">
+              <div className={cn("mb-6 animate-in slide-in-from-top-2", habit.isFrozen && "opacity-50 pointer-events-none")}>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Repeat On</label>
                 <div className="flex items-center gap-1.5 w-full justify-between">
                   {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, idx) => (
@@ -241,7 +241,7 @@ export function EditHabitModal({ habit, onClose }: EditModalProps) {
             )}
 
             {hasDaily && (
-              <div className="flex items-center gap-3 mb-6 animate-in slide-in-from-top-2">
+              <div className={cn("flex items-center gap-3 mb-6 animate-in slide-in-from-top-2", habit.isFrozen && "opacity-50 pointer-events-none")}>
                 <span className="text-sm text-gray-500 dark:text-gray-400">Completions:</span>
                 <div className="flex items-center">
                   <button 
@@ -265,7 +265,7 @@ export function EditHabitModal({ habit, onClose }: EditModalProps) {
             )}
 
             {hasTimely && (
-              <div className="mb-6 animate-in slide-in-from-top-2">
+              <div className={cn("mb-6 animate-in slide-in-from-top-2", habit.isFrozen && "opacity-50 pointer-events-none")}>
                 <span className="block text-sm text-gray-500 dark:text-gray-400 mb-2">Time Target:</span>
                 <div className="flex flex-col gap-2">
                   <div className="flex items-center gap-2">
@@ -311,7 +311,7 @@ export function EditHabitModal({ habit, onClose }: EditModalProps) {
             )}
           </div>
 
-          <div>
+          <div className={cn(habit.isFrozen && "opacity-50 pointer-events-none")}>
             <div className="flex items-center justify-between mb-2">
               <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Daily Reminder</label>
               <button

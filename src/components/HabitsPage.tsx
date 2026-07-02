@@ -493,20 +493,14 @@ export function HabitsPage() {
                     if (!groups[cat]) groups[cat] = [];
                     groups[cat].push(h);
                   });
-                  const categories = Object.entries(groups).sort((a, b) => {
-                    if (a[0] === '') return 1;
-                    if (b[0] === '') return -1;
-                    return 0;
-                  });
+                  const categories = Object.keys(groups).map(k => [k, groups[k]] as [string, Habit[]]);
                   return categories.map(([category, categoryHabits]) => (
                     <div key={category === '' ? 'uncategorized' : category} className="space-y-3">
                       <CategoryHeader 
                         category={category} 
                         onLongPress={() => {
-                          if (category) {
-                            setLongPressedCategory(category);
-                            setCategoryModalState('group-options');
-                          }
+                          setLongPressedCategory(category);
+                          setCategoryModalState('group-options');
                         }} 
                       />
                       <SortableContext
@@ -740,17 +734,12 @@ export function HabitsPage() {
               const groupsObj: Record<string, boolean> = {};
               habits.forEach(h => {
                 const cat = h.category?.trim() || '';
-                groupsObj[cat] = true;
+                if (!groupsObj[cat]) groupsObj[cat] = true;
               });
-              const categoriesList = Object.keys(groupsObj).sort((a, b) => {
-                if (a === '') return 1;
-                if (b === '') return -1;
-                return 0;
-              });
-              const movableCategories = categoriesList.filter(c => c !== '');
-              const groupIndex = movableCategories.indexOf(longPressedCategory);
+              const categoriesList = Object.keys(groupsObj);
+              const groupIndex = categoriesList.indexOf(longPressedCategory);
               const isTop = groupIndex === 0;
-              const isBottom = groupIndex === movableCategories.length - 1;
+              const isBottom = groupIndex === categoriesList.length - 1;
 
               const handleMoveGroup = (dir: 'up' | 'down') => {
                 const newOrder = [...categoriesList];
@@ -790,28 +779,32 @@ export function HabitsPage() {
                         Move Below
                       </button>
                     )}
-                    <button
-                      onClick={() => {
-                        setRenameCategoryName(longPressedCategory);
-                        setCategoryModalState('rename');
-                      }}
-                      className="w-full py-3 px-2 text-left text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 font-medium rounded-lg transition-colors"
-                    >
-                      Rename "{longPressedCategory}"
-                    </button>
-                    <button
-                      onClick={() => {
-                        habits.forEach(h => {
-                          if (h.category === longPressedCategory) {
-                            updateHabit(h.id, { category: '' });
-                          }
-                        });
-                        setCategoryModalState('hidden');
-                      }}
-                      className="w-full py-3 px-2 text-left text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 font-medium rounded-lg transition-colors"
-                    >
-                      Delete "{longPressedCategory}"
-                    </button>
+                    {longPressedCategory !== '' && (
+                      <>
+                        <button
+                          onClick={() => {
+                            setRenameCategoryName(longPressedCategory);
+                            setCategoryModalState('rename');
+                          }}
+                          className="w-full py-3 px-2 text-left text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 font-medium rounded-lg transition-colors"
+                        >
+                          Rename "{longPressedCategory}"
+                        </button>
+                        <button
+                          onClick={() => {
+                            habits.forEach(h => {
+                              if (h.category === longPressedCategory) {
+                                updateHabit(h.id, { category: '' });
+                              }
+                            });
+                            setCategoryModalState('hidden');
+                          }}
+                          className="w-full py-3 px-2 text-left text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 font-medium rounded-lg transition-colors"
+                        >
+                          Delete "{longPressedCategory}"
+                        </button>
+                      </>
+                    )}
                     <button
                       onClick={() => setCategoryModalState('hidden')}
                       className="w-full py-3 text-gray-700 dark:text-gray-300 font-medium rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors mt-2 border border-gray-200 dark:border-gray-700"

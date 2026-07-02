@@ -243,7 +243,7 @@ export function AnalyticsPage() {
               const isFrozen = isHabitDayFrozen(specificHabit, dStr, todayStr);
               
               if (isFrozen) {
-                colorClass = 'bg-blue-100 dark:bg-blue-900/40 shadow-sm';
+                colorClass = 'bg-blue-400 dark:bg-blue-500 shadow-sm';
                 tooltip += ' - Paused';
               } else if (isDone) {
                 colorClass = 'bg-emerald-400 dark:bg-emerald-500 shadow-sm';
