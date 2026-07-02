@@ -2,8 +2,9 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, setPersistence, browserLocalPersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
-declare const __FIREBASE_CONFIG__: any;
-const firebaseConfig = __FIREBASE_CONFIG__;
+import firebaseConfig from './firebase-config.json';
+
+console.log("Firebase config loaded:", firebaseConfig);
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
