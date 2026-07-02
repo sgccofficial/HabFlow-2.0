@@ -96,6 +96,10 @@ function AppContent() {
           setModalError("Username can't be left blank.");
           return;
         }
+        if (!/^[a-zA-Z0-9._]+$/.test(username)) {
+          setModalError("Username can only contain letters, numbers, periods, and underscores.");
+          return;
+        }
         if (pwd.length < 4 || pwd.length > 16) {
           setModalError("Password must have 4-16 characters.");
           return;
@@ -139,6 +143,10 @@ function AppContent() {
         const newUsername = modalState.input.trim();
         if (newUsername === '') {
           setModalError("Username can't be left blank.");
+          return;
+        }
+        if (!/^[a-zA-Z0-9._]+$/.test(newUsername)) {
+          setModalError("Username can only contain letters, numbers, periods, and underscores.");
           return;
         }
         if (accounts.find((a: any) => a.id !== user.id && (a.username === newUsername || a.name === newUsername))) {

@@ -659,10 +659,9 @@ export function HabitsPage() {
                     )}
                     
                     {(() => {
-                      const allFrozen = selectedHabits.every(h => h.isFrozen);
-                      const someFrozen = selectedHabits.some(h => h.isFrozen);
-                      const showFreeze = !allFrozen;
-                      const showUnfreeze = someFrozen;
+                      const isSingleSelection = selectedHabits.length === 1;
+                      const showFreeze = isSingleSelection && !selectedHabits[0].isFrozen;
+                      const showUnfreeze = isSingleSelection && selectedHabits[0].isFrozen;
 
                       const handleFreeze = (freeze: boolean) => {
                         const todayStr = formatDate(new Date());
@@ -683,7 +682,7 @@ export function HabitsPage() {
                                 const end = new Date(Number(ty), Number(tm)-1, Number(td));
                                 curr.setHours(0,0,0,0);
                                 end.setHours(0,0,0,0);
-                                while (curr <= end) {
+                                while (curr < end) {
                                   newFrozenDates.add(formatDate(curr));
                                   curr.setDate(curr.getDate() + 1);
                                 }

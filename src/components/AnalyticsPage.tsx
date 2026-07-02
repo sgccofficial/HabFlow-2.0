@@ -361,7 +361,7 @@ export function AnalyticsPage() {
               </div>
               <div className="bg-white dark:bg-gray-900 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col items-center text-center">
                 <Activity className="w-6 h-6 text-orange-500 mb-2" />
-                <span className="text-2xl font-bold text-gray-900 dark:text-white">{habits.length}</span>
+                <span className="text-2xl font-bold text-gray-900 dark:text-white">{overallStats.activeHabits}</span>
                 <span className="text-xs text-gray-500 font-medium">Active Habits</span>
               </div>
             </div>
