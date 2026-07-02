@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Habit } from '../types';
 import { useAppContext } from '../store/AppContext';
 import { X, ChevronLeft, ChevronRight, Timer, BookOpen, PieChart } from 'lucide-react';
-import { formatDate, calculateStreak, cn } from '../lib/utils';
+import { formatDate, calculateStreak, cn, isHabitDayFrozen } from '../lib/utils';
 import { startOfMonth, endOfMonth, eachDayOfInterval, format, isSameMonth, addMonths, subMonths, isAfter, isBefore } from 'date-fns';
 
 interface CalendarModalProps {
@@ -54,7 +54,13 @@ export function CalendarModal({ habit, onClose }: CalendarModalProps) {
         <div className="flex items-center justify-between p-4 border-b border-gray-100 dark:border-gray-800">
           <div>
             <h2 className="text-lg font-bold text-gray-900 dark:text-white truncate">{habit.name}</h2>
-            <p className="text-sm text-gray-500 font-medium tracking-tight">Current Streak: <span className="text-orange-500">🔥 {streak}</span></p>
+            <p className="text-sm text-gray-500 font-medium tracking-tight">
+              {habit.isFrozen ? (
+                <>Current Streak: <span className="text-blue-500">🧊</span></>
+              ) : (
+                <>Current Streak: <span className="text-orange-500">🔥 {streak}</span></>
+              )}
+            </p>
           </div>
           <button onClick={onClose} className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 bg-gray-100 dark:bg-gray-800 rounded-full">
             <X className="w-5 h-5" />
@@ -87,12 +93,16 @@ export function CalendarModal({ habit, onClose }: CalendarModalProps) {
               const isFuture = dStr > todayStr;
               const isBeforeCreated = dStr < habit.created;
               const isCompleted = habit.dates.includes(dStr);
+              const isFrozen = isHabitDayFrozen(habit, dStr, todayStr);
               
               let bgColor = "";
               let textColor = isCurrentMonth ? "text-gray-900 dark:text-gray-100" : "text-gray-300 dark:text-gray-600";
               
               if (isCurrentMonth) {
-                if (isCompleted) {
+                if (isFrozen) {
+                  bgColor = "bg-blue-100 dark:bg-blue-900/40";
+                  textColor = "text-blue-500 font-bold";
+                } else if (isCompleted) {
                   bgColor = "bg-green-100 dark:bg-green-900/40";
                   textColor = "text-green-700 dark:text-green-400 font-bold";
                 } else if (!isFuture && !isBeforeCreated) {

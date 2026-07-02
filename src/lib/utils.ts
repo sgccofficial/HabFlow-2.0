@@ -23,6 +23,16 @@ function getStartOfWeek(date: Date): Date {
   return d;
 }
 
+export function isHabitDayFrozen(habit: Habit, dStr: string, todayStr: string): boolean {
+  if (habit.frozenDates?.includes(dStr)) return true;
+  if (habit.isFrozen && habit.frozenSince) {
+    if (dStr >= habit.frozenSince && dStr <= todayStr) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // Calculate streak
 export function calculateStreak(habit: Habit): number {
   const { created, dates, progress, targetDays: savedTargetDays } = habit;
@@ -61,10 +71,12 @@ export function calculateStreak(habit: Habit): number {
     if (checkDayCompleted(dStr)) {
       streak++;
     } else {
-      const dayOfWeek = current.getDay();
-      if (targetDays.includes(dayOfWeek)) {
-        if (dStr !== todayStr) {
-          break; // Past required day missed -> streak broken
+      if (!isHabitDayFrozen(habit, dStr, todayStr)) {
+        const dayOfWeek = current.getDay();
+        if (targetDays.includes(dayOfWeek)) {
+          if (dStr !== todayStr) {
+            break; // Past required day missed -> streak broken
+          }
         }
       }
     }

@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../store/AppContext';
 import { format, subDays, eachDayOfInterval, parseISO, getDay, isSameDay, startOfWeek, endOfWeek, isAfter, isBefore, isToday } from 'date-fns';
-import { calculateStreak, cn } from '../lib/utils';
+import { calculateStreak, cn, isHabitDayFrozen, formatDate } from '../lib/utils';
 import { TrendingUp, Award, CalendarDays, Activity, Share2 } from 'lucide-react';
 import { ShareMilestoneModal } from './ShareMilestoneModal';
 
@@ -124,11 +124,12 @@ export function AnalyticsPage() {
 
   // Overall Activity Heatmap Data
   const heatmapData = useMemo(() => {
+    const activeHabitsList = habits.filter(h => !h.isFrozen);
     return last30Days.map(date => {
       const dStr = format(date, 'yyyy-MM-dd');
       let count = 0;
-      habits.forEach(h => {
-        if (h.dates.includes(dStr)) count++;
+      activeHabitsList.forEach(h => {
+        if (h.dates.includes(dStr) && !isHabitDayFrozen(h, dStr, formatDate(today))) count++;
       });
       return { date: dStr, label: format(date, 'MMM d'), count };
     });
@@ -140,32 +141,39 @@ export function AnalyticsPage() {
   const habitAnalytics = useMemo(() => {
     if (!selectedHabit) return null;
     let longestStreak = 0;
-    let currentStreak = 0;
-    const sortedDates = [...selectedHabit.dates].sort();
+    let currentStreak = calculateStreak(selectedHabit);
     
-    // Longest streak calculation
-    if (sortedDates.length > 0) {
-      let tempStreak = 1;
-      longestStreak = 1;
-      for (let i = 1; i < sortedDates.length; i++) {
-        const prev = parseISO(sortedDates[i-1]);
-        const curr = parseISO(sortedDates[i]);
-        const diff = (curr.getTime() - prev.getTime()) / (1000 * 60 * 60 * 24);
-        if (diff === 1) {
+    // Custom longest streak calculation ignoring frozen days and non-target days
+    const createdDate = parseISO(selectedHabit.created);
+    const daysSinceCreation = Math.max(1, Math.floor((today.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+    
+    let tempStreak = 0;
+    let validDaysSinceCreation = 0;
+    const todayStr = formatDate(today);
+    
+    for (let i = 0; i < daysSinceCreation; i++) {
+      const d = new Date(createdDate);
+      d.setDate(d.getDate() + i);
+      const dStr = format(d, 'yyyy-MM-dd');
+      
+      const isFrozen = isHabitDayFrozen(selectedHabit, dStr, todayStr);
+      if (!isFrozen) {
+        validDaysSinceCreation++;
+        const targetDays = selectedHabit.targetDays || [0, 1, 2, 3, 4, 5, 6];
+        const dayOfWeek = d.getDay();
+        const isTarget = targetDays.includes(dayOfWeek);
+        
+        const completed = selectedHabit.dates.includes(dStr);
+        if (completed) {
           tempStreak++;
           longestStreak = Math.max(longestStreak, tempStreak);
-        } else if (diff > 1) {
-          tempStreak = 1;
+        } else if (isTarget) {
+          tempStreak = 0;
         }
       }
     }
     
-    currentStreak = calculateStreak(selectedHabit);
-    
-    // Completion rate
-    const createdDate = parseISO(selectedHabit.created);
-    const daysSinceCreation = Math.max(1, Math.floor((today.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24)) + 1);
-    const completionRate = Math.round((selectedHabit.dates.length / daysSinceCreation) * 100);
+    const completionRate = validDaysSinceCreation > 0 ? Math.round((selectedHabit.dates.length / validDaysSinceCreation) * 100) : 0;
 
     // Activity over last 30 days
     const activityOverTime = last30Days.map(date => {
@@ -180,25 +188,41 @@ export function AnalyticsPage() {
   }, [selectedHabit, last30Days, today]);
 
   const overallStats = useMemo(() => {
+    const activeHabitsList = habits.filter(h => !h.isFrozen);
     let totalCompletions = 0;
     let totalPossible = 0;
-    habits.forEach(h => {
-      totalCompletions += h.dates.length;
+    const todayStr = formatDate(today);
+    
+    activeHabitsList.forEach(h => {
       const createdDate = parseISO(h.created);
       const daysSinceCreation = Math.max(1, Math.floor((today.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24)) + 1);
-      totalPossible += daysSinceCreation;
+      
+      let validDays = 0;
+      let validCompletions = 0;
+      for (let i = 0; i < daysSinceCreation; i++) {
+        const d = new Date(createdDate);
+        d.setDate(d.getDate() + i);
+        const dStr = format(d, 'yyyy-MM-dd');
+        if (!isHabitDayFrozen(h, dStr, todayStr)) {
+          validDays++;
+          if (h.dates.includes(dStr)) validCompletions++;
+        }
+      }
+      
+      totalCompletions += validCompletions;
+      totalPossible += validDays;
     });
     
     const consistencyRate = totalPossible > 0 ? Math.round((totalCompletions / totalPossible) * 100) : 0;
     return {
       totalCompletions,
-      activeHabits: habits.length,
+      activeHabits: activeHabitsList.length,
       consistencyRate
     };
   }, [habits, today]);
 
-
   const renderBlocks = (specificHabit?: any) => {
+    const todayStr = formatDate(today);
     return (
       <div className="grid grid-cols-7 gap-2 mt-2">
         {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
@@ -216,8 +240,12 @@ export function AnalyticsPage() {
             if (specificHabit) {
               const isDone = specificHabit.dates.includes(dStr);
               const isNotCreated = dStr < specificHabit.created;
+              const isFrozen = isHabitDayFrozen(specificHabit, dStr, todayStr);
               
-              if (isDone) {
+              if (isFrozen) {
+                colorClass = 'bg-blue-100 dark:bg-blue-900/40 shadow-sm';
+                tooltip += ' - Paused';
+              } else if (isDone) {
                 colorClass = 'bg-emerald-400 dark:bg-emerald-500 shadow-sm';
                 tooltip += ' - Completed';
               } else if (isSameDay(date, today)) {
@@ -232,16 +260,17 @@ export function AnalyticsPage() {
               }
             } else {
               // Overview
-              if (habits.length === 0) {
+              const activeHabitsList = habits.filter(h => !h.isFrozen);
+              if (activeHabitsList.length === 0) {
                 colorClass = isSameDay(date, today) ? 'bg-yellow-400 dark:bg-yellow-500 shadow-sm' : 'bg-gray-100 dark:bg-gray-800/30';
               } else {
-                const earliestHabit = [...habits].sort((a, b) => a.created.localeCompare(b.created))[0];
-                const isNotCreated = dStr < earliestHabit.created;
+                const earliestHabit = [...activeHabitsList].sort((a, b) => a.created.localeCompare(b.created))[0];
+                const isNotCreated = earliestHabit ? dStr < earliestHabit.created : true;
                 
                 let completedCount = 0;
                 let activeCount = 0;
-                habits.forEach(h => {
-                  if (dStr >= h.created) {
+                activeHabitsList.forEach(h => {
+                  if (dStr >= h.created && !isHabitDayFrozen(h, dStr, todayStr)) {
                     activeCount++;
                     if (h.dates.includes(dStr)) completedCount++;
                   }

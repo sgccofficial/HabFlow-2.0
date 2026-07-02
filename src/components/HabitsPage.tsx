@@ -23,7 +23,7 @@ import {
 } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { calculateStreak } from '../lib/utils';
+import { calculateStreak, formatDate } from '../lib/utils';
 
 const COLORS = [
   '#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16', '#22c55e', '#10b981',
@@ -663,6 +663,68 @@ export function HabitsPage() {
                         </button>
                       </>
                     )}
+                    
+                    {(() => {
+                      const allFrozen = selectedHabits.every(h => h.isFrozen);
+                      const someFrozen = selectedHabits.some(h => h.isFrozen);
+                      const showFreeze = !allFrozen;
+                      const showUnfreeze = someFrozen;
+
+                      const handleFreeze = (freeze: boolean) => {
+                        const todayStr = formatDate(new Date());
+                        selectedHabits.forEach(h => {
+                          if (freeze) {
+                            if (!h.isFrozen) {
+                              const progress = { ...(h.progress || {}) };
+                              progress['_frozen_streak_'] = calculateStreak(h);
+                              updateHabit(h.id, { isFrozen: true, frozenSince: todayStr, progress });
+                            }
+                          } else {
+                            if (h.isFrozen) {
+                              const newFrozenDates = new Set(h.frozenDates || []);
+                              if (h.frozenSince) {
+                                const [y, m, d] = h.frozenSince.split('-');
+                                let curr = new Date(Number(y), Number(m)-1, Number(d));
+                                const [ty, tm, td] = todayStr.split('-');
+                                const end = new Date(Number(ty), Number(tm)-1, Number(td));
+                                curr.setHours(0,0,0,0);
+                                end.setHours(0,0,0,0);
+                                while (curr <= end) {
+                                  newFrozenDates.add(formatDate(curr));
+                                  curr.setDate(curr.getDate() + 1);
+                                }
+                              }
+                              updateHabit(h.id, { isFrozen: false, frozenSince: undefined, frozenDates: Array.from(newFrozenDates) });
+                            }
+                          }
+                        });
+                        setCategoryModalState('hidden');
+                        setIsSelectionMode(false);
+                        setSelectedIds(new Set());
+                      };
+
+                      return (
+                        <>
+                          {showFreeze && (
+                            <button
+                              onClick={() => handleFreeze(true)}
+                              className="w-full py-3 px-2 text-left text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 font-medium rounded-lg transition-colors"
+                            >
+                              Freeze Streak
+                            </button>
+                          )}
+                          {showUnfreeze && (
+                            <button
+                              onClick={() => handleFreeze(false)}
+                              className="w-full py-3 px-2 text-left text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 font-medium rounded-lg transition-colors"
+                            >
+                              Unfreeze Streak
+                            </button>
+                          )}
+                        </>
+                      );
+                    })()}
+
                     <button
                       onClick={() => setCategoryModalState('hidden')}
                       className="w-full py-3 text-gray-700 dark:text-gray-300 font-medium rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors mt-2 border border-gray-200 dark:border-gray-700"
@@ -674,41 +736,92 @@ export function HabitsPage() {
               );
             })()}
 
-            {categoryModalState === 'group-options' && (
-              <>
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Edit Group</h3>
-                <div className="flex flex-col gap-1">
-                  <button
-                    onClick={() => {
-                      setRenameCategoryName(longPressedCategory);
-                      setCategoryModalState('rename');
-                    }}
-                    className="w-full py-3 px-2 text-left text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 font-medium rounded-lg transition-colors"
-                  >
-                    Rename "{longPressedCategory}"
-                  </button>
-                  <button
-                    onClick={() => {
-                      habits.forEach(h => {
-                        if (h.category === longPressedCategory) {
-                          updateHabit(h.id, { category: '' });
-                        }
-                      });
-                      setCategoryModalState('hidden');
-                    }}
-                    className="w-full py-3 px-2 text-left text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 font-medium rounded-lg transition-colors"
-                  >
-                    Delete "{longPressedCategory}"
-                  </button>
-                  <button
-                    onClick={() => setCategoryModalState('hidden')}
-                    className="w-full py-3 text-gray-700 dark:text-gray-300 font-medium rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors mt-2 border border-gray-200 dark:border-gray-700"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </>
-            )}
+            {categoryModalState === 'group-options' && (() => {
+              const groupsObj: Record<string, boolean> = {};
+              habits.forEach(h => {
+                const cat = h.category?.trim() || '';
+                groupsObj[cat] = true;
+              });
+              const categoriesList = Object.keys(groupsObj).sort((a, b) => {
+                if (a === '') return 1;
+                if (b === '') return -1;
+                return 0;
+              });
+              const movableCategories = categoriesList.filter(c => c !== '');
+              const groupIndex = movableCategories.indexOf(longPressedCategory);
+              const isTop = groupIndex === 0;
+              const isBottom = groupIndex === movableCategories.length - 1;
+
+              const handleMoveGroup = (dir: 'up' | 'down') => {
+                const newOrder = [...categoriesList];
+                const currentIndex = newOrder.indexOf(longPressedCategory);
+                const targetIndex = dir === 'up' ? currentIndex - 1 : currentIndex + 1;
+                
+                // Swap
+                const temp = newOrder[currentIndex];
+                newOrder[currentIndex] = newOrder[targetIndex];
+                newOrder[targetIndex] = temp;
+
+                const finalHabits: Habit[] = [];
+                for (const cat of newOrder) {
+                  finalHabits.push(...habits.filter(h => (h.category?.trim() || '') === cat));
+                }
+                reorderHabits(finalHabits);
+                setCategoryModalState('hidden');
+              };
+
+              return (
+                <>
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Edit Group</h3>
+                  <div className="flex flex-col gap-1">
+                    {!isTop && (
+                      <button
+                        onClick={() => handleMoveGroup('up')}
+                        className="w-full py-3 px-2 text-left text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 font-medium rounded-lg transition-colors"
+                      >
+                        Move Above
+                      </button>
+                    )}
+                    {!isBottom && (
+                      <button
+                        onClick={() => handleMoveGroup('down')}
+                        className="w-full py-3 px-2 text-left text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 font-medium rounded-lg transition-colors"
+                      >
+                        Move Below
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        setRenameCategoryName(longPressedCategory);
+                        setCategoryModalState('rename');
+                      }}
+                      className="w-full py-3 px-2 text-left text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 font-medium rounded-lg transition-colors"
+                    >
+                      Rename "{longPressedCategory}"
+                    </button>
+                    <button
+                      onClick={() => {
+                        habits.forEach(h => {
+                          if (h.category === longPressedCategory) {
+                            updateHabit(h.id, { category: '' });
+                          }
+                        });
+                        setCategoryModalState('hidden');
+                      }}
+                      className="w-full py-3 px-2 text-left text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 font-medium rounded-lg transition-colors"
+                    >
+                      Delete "{longPressedCategory}"
+                    </button>
+                    <button
+                      onClick={() => setCategoryModalState('hidden')}
+                      className="w-full py-3 text-gray-700 dark:text-gray-300 font-medium rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors mt-2 border border-gray-200 dark:border-gray-700"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </>
+              );
+            })()}
 
             {categoryModalState === 'rename' && (() => {
               const commonCategory = longPressedCategory;

@@ -569,7 +569,7 @@ function AppContent() {
                      habitId: '', // General journal
                      content: contentParts.join('\n\n'),
                      date: formatDate(new Date()),
-                     timestamp: Date.now()
+                     createdAt: Date.now()
                    });
                    setShareData(null);
                    setCurrentPage('journal');

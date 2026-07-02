@@ -14,6 +14,9 @@ export interface Habit {
   dailyCompletions?: number;
   durationGoal?: number; // in seconds
   category?: string;
+  isFrozen?: boolean;
+  frozenSince?: string;
+  frozenDates?: string[]; // ISO format "YYYY-MM-DD"
 }
 
 export interface JournalEntry {

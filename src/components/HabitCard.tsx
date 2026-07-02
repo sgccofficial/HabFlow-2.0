@@ -60,7 +60,11 @@ export function HabitCard({ habit, onEdit, onOpenCalendar, dragHandleProps }: Ha
       <div className="flex-grow min-w-0 cursor-pointer" onClick={onOpenCalendar} role="button">
         <h3 className="font-semibold text-gray-900 dark:text-gray-100 truncate">{habit.name}</h3>
         <div className="text-sm text-gray-500 dark:text-gray-400 flex flex-wrap items-center gap-x-2 gap-y-1 mt-0.5">
-          <span className="whitespace-nowrap flex items-center">🔥 {streak} {streak === 1 ? 'day streak' : 'day streak'}</span>
+          {habit.isFrozen ? (
+            <span className="whitespace-nowrap flex items-center">🧊 Streak paused</span>
+          ) : (
+            <span className="whitespace-nowrap flex items-center">🔥 {streak} {streak === 1 ? 'day streak' : 'day streak'}</span>
+          )}
           {habit.reminderTime && (
             <span className="flex items-center gap-0.5 text-xs bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded-md whitespace-nowrap">
               <LucideIcons.Bell className="w-3 h-3" />
@@ -79,7 +83,11 @@ export function HabitCard({ habit, onEdit, onOpenCalendar, dragHandleProps }: Ha
           <LucideIcons.Settings className="w-5 h-5" />
         </button>
         
-        {isTimely && totalDurationGoal > 0 ? (
+        {habit.isFrozen ? (
+          <div className="w-10 h-10 rounded-full flex items-center justify-center bg-blue-100 dark:bg-blue-900/30 text-blue-500 cursor-not-allowed shadow-sm border border-blue-200 dark:border-blue-800">
+            <span className="text-lg leading-none select-none">🧊</span>
+          </div>
+        ) : isTimely && totalDurationGoal > 0 ? (
           <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded-full px-2 py-1 border border-gray-200 dark:border-gray-600">
              <span className="text-sm font-medium text-gray-700 dark:text-gray-300 ml-1 whitespace-nowrap">
                {formatDuration(todayProgress)}/{formatDuration(totalDurationGoal)}
