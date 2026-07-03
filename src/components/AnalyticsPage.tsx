@@ -302,8 +302,8 @@ export function AnalyticsPage() {
                 } else if (activeCount > 0) {
                   const ratio = completedCount / activeCount;
                   if (completedCount === 0) {
-                    colorClass = isSameDay(date, today) ? 'bg-yellow-400 dark:bg-yellow-500 shadow-sm' : 'bg-red-400 dark:bg-red-500 shadow-sm';
-                    tooltip += isSameDay(date, today) ? ' - Today' : ' - None done';
+                    colorClass = 'bg-red-400 dark:bg-red-500 shadow-sm';
+                    tooltip += ' - None done';
                   } else if (ratio > 0.5) {
                     colorClass = 'bg-emerald-400 dark:bg-emerald-500 shadow-sm';
                     tooltip += ` - ${completedCount}/${activeCount} done`;
