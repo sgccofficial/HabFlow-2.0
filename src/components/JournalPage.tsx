@@ -24,6 +24,7 @@ export function JournalPage() {
   const { journal, habits, addJournalEntry, updateJournalEntry, deleteJournalEntry, activeHabitId, setActiveHabitId } = useAppContext();
   
   const [newContent, setNewContent] = useState('');
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   const [editContent, setEditContent] = useState('');
 
@@ -295,13 +296,23 @@ export function JournalPage() {
                           <Edit3 className="w-4 h-4" />
                         </button>
                         <button 
-                          onClick={() => deleteJournalEntry(entry.id)}
+                          onClick={() => setDeleteConfirmId(entry.id)}
                           className="p-1.5 text-gray-400 hover:text-red-500 bg-gray-50 dark:bg-gray-800 rounded-md"
                           title="Delete"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
+                      
+                      {deleteConfirmId === entry.id && (
+                        <div className="absolute inset-0 bg-white/90 dark:bg-gray-900/90 rounded-2xl flex flex-col items-center justify-center z-10 backdrop-blur-sm p-4 text-center border-2 border-red-500/20">
+                          <p className="text-gray-900 dark:text-gray-100 font-medium mb-4">Are you sure you want to delete this journal entry?</p>
+                          <div className="flex gap-3">
+                            <button onClick={() => setDeleteConfirmId(null)} className="px-4 py-2 rounded-xl text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 font-medium transition-colors">Cancel</button>
+                            <button onClick={() => { deleteJournalEntry(entry.id); setDeleteConfirmId(null); }} className="px-4 py-2 rounded-xl bg-red-500 hover:bg-red-600 text-white font-medium transition-colors">Delete Entry</button>
+                          </div>
+                        </div>
+                      )}
                     </>
                   )}
                 </div>

@@ -191,7 +191,12 @@ export function AnalyticsPage() {
     const activeHabitsList = habits.filter(h => !h.isFrozen);
     let totalCompletions = 0;
     let totalPossible = 0;
+    let allTimeCompletions = 0;
     const todayStr = formatDate(today);
+    
+    habits.forEach(h => {
+      allTimeCompletions += h.dates.length;
+    });
     
     activeHabitsList.forEach(h => {
       const createdDate = parseISO(h.created);
@@ -216,6 +221,7 @@ export function AnalyticsPage() {
     const consistencyRate = totalPossible > 0 ? Math.round((totalCompletions / totalPossible) * 100) : 0;
     return {
       totalCompletions,
+      allTimeCompletions,
       activeHabits: activeHabitsList.length,
       consistencyRate
     };
@@ -241,6 +247,8 @@ export function AnalyticsPage() {
               const isDone = specificHabit.dates.includes(dStr);
               const isNotCreated = dStr < specificHabit.created;
               const isFrozen = isHabitDayFrozen(specificHabit, dStr, todayStr);
+              const targetDays = specificHabit.targetDays || [0, 1, 2, 3, 4, 5, 6];
+              const isTargetDay = targetDays.includes(date.getDay());
               
               if (isFrozen) {
                 colorClass = 'bg-blue-400 dark:bg-blue-500 shadow-sm';
@@ -248,6 +256,9 @@ export function AnalyticsPage() {
               } else if (isDone) {
                 colorClass = 'bg-emerald-400 dark:bg-emerald-500 shadow-sm';
                 tooltip += ' - Completed';
+              } else if (!isTargetDay) {
+                colorClass = 'bg-gray-100 dark:bg-gray-800/30';
+                tooltip += ' - Rest Day';
               } else if (isSameDay(date, today)) {
                 colorClass = 'bg-yellow-400 dark:bg-yellow-500 shadow-sm';
                 tooltip += ' - Today';
@@ -264,33 +275,54 @@ export function AnalyticsPage() {
               if (activeHabitsList.length === 0) {
                 colorClass = isSameDay(date, today) ? 'bg-yellow-400 dark:bg-yellow-500 shadow-sm' : 'bg-gray-100 dark:bg-gray-800/30';
               } else {
-                const earliestHabit = [...activeHabitsList].sort((a, b) => a.created.localeCompare(b.created))[0];
-                const isNotCreated = earliestHabit ? dStr < earliestHabit.created : true;
+                const isNotCreated = habits.length > 0 ? dStr < [...habits].sort((a, b) => a.created.localeCompare(b.created))[0].created : true;
                 
                 let completedCount = 0;
                 let activeCount = 0;
-                activeHabitsList.forEach(h => {
-                  if (dStr >= h.created && !isHabitDayFrozen(h, dStr, todayStr)) {
-                    activeCount++;
-                    if (h.dates.includes(dStr)) completedCount++;
+                let frozenCount = 0;
+                habits.forEach(h => {
+                  if (dStr >= h.created) {
+                    if (isHabitDayFrozen(h, dStr, todayStr)) {
+                      frozenCount++;
+                    } else {
+                      const tDays = h.targetDays || [0, 1, 2, 3, 4, 5, 6];
+                      const isTDay = tDays.includes(date.getDay());
+                      const isDone = h.dates.includes(dStr);
+                      if (isTDay || isDone) {
+                        activeCount++;
+                        if (isDone) completedCount++;
+                      }
+                    }
                   }
                 });
                 
-                if (completedCount > 0 && completedCount === activeCount) {
-                  colorClass = 'bg-emerald-400 dark:bg-emerald-500 shadow-sm';
-                  tooltip += ` - All ${completedCount} done`;
-                } else if (completedCount > 0) {
-                  colorClass = 'bg-emerald-300 dark:bg-emerald-400/70 shadow-sm';
-                  tooltip += ` - ${completedCount}/${activeCount} done`;
+                if (activeCount === 0 && frozenCount > 0) {
+                  colorClass = 'bg-blue-400 dark:bg-blue-500 shadow-sm';
+                  tooltip += ' - Paused';
+                } else if (activeCount > 0) {
+                  const ratio = completedCount / activeCount;
+                  if (completedCount === 0) {
+                    colorClass = isSameDay(date, today) ? 'bg-yellow-400 dark:bg-yellow-500 shadow-sm' : 'bg-red-400 dark:bg-red-500 shadow-sm';
+                    tooltip += isSameDay(date, today) ? ' - Today' : ' - None done';
+                  } else if (ratio > 0.5) {
+                    colorClass = 'bg-emerald-400 dark:bg-emerald-500 shadow-sm';
+                    tooltip += ` - ${completedCount}/${activeCount} done`;
+                  } else if (ratio >= 0.4) {
+                    colorClass = 'bg-yellow-400 dark:bg-yellow-500 shadow-sm';
+                    tooltip += ` - ${completedCount}/${activeCount} done`;
+                  } else {
+                    colorClass = 'bg-red-400 dark:bg-red-500 shadow-sm';
+                    tooltip += ` - ${completedCount}/${activeCount} done`;
+                  }
                 } else if (isSameDay(date, today)) {
                   colorClass = 'bg-yellow-400 dark:bg-yellow-500 shadow-sm';
                   tooltip += ' - Today';
-                } else if (isNotCreated || activeCount === 0) {
+                } else if (isNotCreated) {
+                  colorClass = 'bg-gray-100 dark:bg-gray-800/30';
+                  tooltip += ' - Not created yet';
+                } else {
                   colorClass = 'bg-gray-100 dark:bg-gray-800/30';
                   tooltip += ' - No habits active';
-                } else {
-                  colorClass = 'bg-red-400 dark:bg-red-500 shadow-sm';
-                  tooltip += ' - None done';
                 }
               }
             }
@@ -356,8 +388,8 @@ export function AnalyticsPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-white dark:bg-gray-900 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col items-center text-center">
                 <CalendarDays className="w-6 h-6 text-emerald-500 mb-2" />
-                <span className="text-2xl font-bold text-gray-900 dark:text-white">{heatmapData.reduce((acc, val) => acc + val.count, 0)}</span>
-                <span className="text-xs text-gray-500 font-medium">Recent Completions</span>
+                <span className="text-2xl font-bold text-gray-900 dark:text-white">{overallStats.allTimeCompletions}</span>
+                <span className="text-xs text-gray-500 font-medium">Overall Completions</span>
               </div>
               <div className="bg-white dark:bg-gray-900 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col items-center text-center">
                 <Activity className="w-6 h-6 text-orange-500 mb-2" />

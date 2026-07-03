@@ -1,0 +1,15 @@
+--- src/lib/utils.ts
++++ src/lib/utils.ts
+@@ -62,8 +62,13 @@
+ 
+   const checkDayCompleted = (dStr: string) => {
+     const val = progress?.[dStr] ?? (dates.includes(dStr) ? 1 : 0);
++    
++    // Daily and hourly goals only apply to target days
++    const dateObj = new Date(dStr + 'T12:00:00');
++    if (!targetDays.includes(dateObj.getDay())) {
++      return val > 0;
++    }
+     return val >= targetValue;
+   };
+ 

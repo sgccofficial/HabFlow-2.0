@@ -173,14 +173,14 @@ async function processNotifications() {
             const createdMins = createdDate.getUTCHours() * 60 + createdDate.getUTCMinutes();
 
             if (createdToday && createdMins >= rTimeMins) {
-               if (now - createdTs >= 115 * 60 * 1000) {
+               if (now - createdTs >= 120 * 60 * 1000) {
                  shouldSend = true;
                }
             } else {
                shouldSend = true;
             }
           } else {
-            if (now - lastSentTimestamp >= 115 * 60 * 1000) {
+            if (now - lastSentTimestamp >= 120 * 60 * 1000) {
               shouldSend = true;
             }
           }

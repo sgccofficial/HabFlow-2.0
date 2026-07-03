@@ -54,6 +54,10 @@ export function calculateStreak(habit: Habit): number {
   
   const checkDayCompleted = (dStr: string) => {
     const val = progress?.[dStr] ?? (dates.includes(dStr) ? 1 : 0);
+    const dateObj = new Date(dStr + 'T12:00:00');
+    if (!targetDays.includes(dateObj.getDay())) {
+      return val > 0;
+    }
     return val >= targetValue;
   };
 
