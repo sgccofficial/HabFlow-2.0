@@ -11,7 +11,7 @@ self.addEventListener('push', e => {
 self.addEventListener('install', (e) => {
   self.skipWaiting();
   e.waitUntil(
-    caches.open('habitflow-cache-v1').then((cache) => {
+    caches.open('habitflow-cache-v2').then((cache) => {
       return cache.addAll([
         '/',
         '/index.html',
@@ -25,7 +25,7 @@ self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys().then((keyList) => {
       return Promise.all(keyList.map((key) => {
-        if (key !== 'habitflow-cache-v1') {
+        if (key !== 'habitflow-cache-v2') {
           return caches.delete(key);
         }
       }));
@@ -36,22 +36,36 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
-  e.respondWith(
-    caches.match(e.request).then((response) => {
-      return response || fetch(e.request).then((fetchRes) => {
-        return caches.open('habitflow-cache-v1').then((cache) => {
-          // Cache successful GET requests
+  
+  if (e.request.mode === 'navigate' || e.request.headers.get('accept').includes('text/html')) {
+    e.respondWith(
+      fetch(e.request).then((fetchRes) => {
+        return caches.open('habitflow-cache-v2').then((cache) => {
           if (e.request.url.startsWith('http')) {
             cache.put(e.request, fetchRes.clone());
           }
           return fetchRes;
         });
       }).catch(() => {
-        // Fallback for offline if resource not in cache
-        if (e.request.mode === 'navigate') {
-          return caches.match('/');
-        }
-      });
+        return caches.match(e.request).then((response) => {
+          return response || caches.match('/');
+        });
+      })
+    );
+    return;
+  }
+
+  e.respondWith(
+    caches.match(e.request).then((response) => {
+      return response || fetch(e.request).then((fetchRes) => {
+        return caches.open('habitflow-cache-v2').then((cache) => {
+          // Cache successful GET requests
+          if (e.request.url.startsWith('http')) {
+            cache.put(e.request, fetchRes.clone());
+          }
+          return fetchRes;
+        });
+      }).catch(() => {});
     })
   );
 });
