@@ -72,10 +72,14 @@ export function calculateStreak(habit: Habit): number {
     const dStr = formatDate(current);
     if (dStr < created) break;
 
+    const isFrozen = isHabitDayFrozen(habit, dStr, todayStr);
+
     if (checkDayCompleted(dStr)) {
-      streak++;
+      if (!isFrozen) {
+        streak++;
+      }
     } else {
-      if (!isHabitDayFrozen(habit, dStr, todayStr)) {
+      if (!isFrozen) {
         const dayOfWeek = current.getDay();
         if (targetDays.includes(dayOfWeek)) {
           if (dStr !== todayStr) {
@@ -88,4 +92,65 @@ export function calculateStreak(habit: Habit): number {
     current.setDate(current.getDate() - 1);
   }
   return streak;
+}
+
+export function calculateLongestStreak(habit: Habit): number {
+  const { created, dates, progress, targetDays: savedTargetDays } = habit;
+  
+  if (dates.length === 0 && (!progress || Object.keys(progress).length === 0)) return 0;
+  
+  const isTimely = habit.durationGoal !== undefined ? habit.durationGoal > 0 : habit.goalType === 'duration';
+  const durationGoal = habit.durationGoal || (habit.goalType === 'duration' ? (habit.durationUnit === 'hr' ? (habit.goalValue || 0) * 3600 : habit.durationUnit === 'min' ? (habit.goalValue || 0) * 60 : (habit.goalValue || 0)) : 0);
+  
+  const isDaily = habit.dailyCompletions !== undefined ? habit.dailyCompletions > 0 : (habit.goalType === 'daily' || habit.goalType === 'weekly');
+  const dailyCompletions = habit.dailyCompletions || ((habit.goalType === 'daily' || habit.goalType === 'weekly') ? habit.goalValue || 1 : 1);
+
+  let targetValue = 1;
+  if (isTimely) {
+    targetValue = durationGoal * (isDaily ? dailyCompletions : 1);
+  } else if (isDaily) {
+    targetValue = dailyCompletions;
+  }
+  
+  const targetDays = savedTargetDays || [0, 1, 2, 3, 4, 5, 6];
+  if (targetDays.length === 0) return 0;
+
+  const checkDayCompleted = (dStr: string) => {
+    const val = progress?.[dStr] ?? (dates.includes(dStr) ? 1 : 0);
+    const dateObj = new Date(dStr + 'T12:00:00');
+    if (!targetDays.includes(dateObj.getDay())) {
+      return val > 0;
+    }
+    return val >= targetValue;
+  };
+
+  let longestStreak = 0;
+  let tempStreak = 0;
+  const today = new Date();
+  const todayStr = formatDate(today);
+  
+  const createdDate = new Date(created + 'T12:00:00');
+  const daysSinceCreation = Math.max(1, Math.floor((today.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+  
+  for (let i = 0; i < daysSinceCreation; i++) {
+    const d = new Date(createdDate);
+    d.setDate(d.getDate() + i);
+    const dStr = formatDate(d);
+    
+    const isFrozen = isHabitDayFrozen(habit, dStr, todayStr);
+    
+    if (!isFrozen) {
+      const dayOfWeek = d.getDay();
+      const isTarget = targetDays.includes(dayOfWeek);
+      
+      if (checkDayCompleted(dStr)) {
+        tempStreak++;
+        longestStreak = Math.max(longestStreak, tempStreak);
+      } else if (isTarget) {
+        tempStreak = 0;
+      }
+    }
+  }
+  
+  return longestStreak;
 }

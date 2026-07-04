@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../store/AppContext';
 import { format, subDays, eachDayOfInterval, parseISO, getDay, isSameDay, startOfWeek, endOfWeek, isAfter, isBefore, isToday } from 'date-fns';
-import { calculateStreak, cn, isHabitDayFrozen, formatDate } from '../lib/utils';
+import { calculateStreak, calculateLongestStreak, cn, isHabitDayFrozen, formatDate } from '../lib/utils';
 import { TrendingUp, Award, CalendarDays, Activity, Share2 } from 'lucide-react';
 import { ShareMilestoneModal } from './ShareMilestoneModal';
 
@@ -140,14 +140,12 @@ export function AnalyticsPage() {
 
   const habitAnalytics = useMemo(() => {
     if (!selectedHabit) return null;
-    let longestStreak = 0;
     let currentStreak = calculateStreak(selectedHabit);
+    let longestStreak = calculateLongestStreak(selectedHabit);
     
-    // Custom longest streak calculation ignoring frozen days and non-target days
     const createdDate = parseISO(selectedHabit.created);
     const daysSinceCreation = Math.max(1, Math.floor((today.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24)) + 1);
     
-    let tempStreak = 0;
     let validDaysSinceCreation = 0;
     const todayStr = formatDate(today);
     
@@ -159,17 +157,6 @@ export function AnalyticsPage() {
       const isFrozen = isHabitDayFrozen(selectedHabit, dStr, todayStr);
       if (!isFrozen) {
         validDaysSinceCreation++;
-        const targetDays = selectedHabit.targetDays || [0, 1, 2, 3, 4, 5, 6];
-        const dayOfWeek = d.getDay();
-        const isTarget = targetDays.includes(dayOfWeek);
-        
-        const completed = selectedHabit.dates.includes(dStr);
-        if (completed) {
-          tempStreak++;
-          longestStreak = Math.max(longestStreak, tempStreak);
-        } else if (isTarget) {
-          tempStreak = 0;
-        }
       }
     }
     

@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { X, Share2, Download, User } from 'lucide-react';
 import { Habit } from '../types';
-import { calculateStreak, cn } from '../lib/utils';
+import { calculateStreak, calculateLongestStreak, cn } from '../lib/utils';
 import { toBlob } from 'html-to-image';
 import * as LucideIcons from 'lucide-react';
 import { BACKGROUND_TEXTURES } from '../lib/constants';
@@ -27,11 +27,13 @@ export function ShareMilestoneModal({ habit, overallStats, onClose }: ShareMiles
   });
   
   let streak = 0;
+  let longestStreak = 0;
   let completionRate = 0;
   let habitColor = '#4f46e5';
   
   if (habit) {
     streak = calculateStreak(habit);
+    longestStreak = calculateLongestStreak(habit);
     const daysSinceCreation = Math.max(1, Math.floor((new Date().getTime() - new Date(habit.created).getTime()) / (1000 * 3600 * 24)) + 1);
     completionRate = Math.min(100, Math.round((habit.dates.length / daysSinceCreation) * 100));
     habitColor = habit.color;
@@ -163,16 +165,22 @@ export function ShareMilestoneModal({ habit, overallStats, onClose }: ShareMiles
                       return <Icon className="w-12 h-12" />;
                     })()}
                   </div>
-                  <div className="flex gap-4 w-full">
-                    <div className="flex-1 p-4 rounded-2xl bg-black/20 backdrop-blur-md border border-white/10">
-                      <div className="text-sm font-medium mb-1 text-white/80">Current Streak</div>
-                      <div className="text-2xl font-bold text-white drop-shadow-sm">
-                        {streak} {streak === 1 ? 'Day' : 'Days'}
+                  <div className="flex gap-2 w-full px-2">
+                    <div className="flex-1 p-3 sm:p-4 rounded-2xl bg-black/20 backdrop-blur-md border border-white/10 flex flex-col items-center justify-center text-center">
+                      <div className="text-[11px] sm:text-xs font-medium mb-1 text-white/80 leading-tight">Current Streak</div>
+                      <div className="text-xl sm:text-2xl font-bold text-white drop-shadow-sm mt-auto">
+                        {streak} <span className="text-sm font-normal opacity-80">{streak === 1 ? 'Day' : 'Days'}</span>
                       </div>
                     </div>
-                    <div className="flex-1 p-4 rounded-2xl bg-black/20 backdrop-blur-md border border-white/10">
-                      <div className="text-sm font-medium mb-1 text-white/80">Consistency</div>
-                      <div className="text-2xl font-bold text-white drop-shadow-sm">
+                    <div className="flex-1 p-3 sm:p-4 rounded-2xl bg-black/20 backdrop-blur-md border border-white/10 flex flex-col items-center justify-center text-center">
+                      <div className="text-[11px] sm:text-xs font-medium mb-1 text-white/80 leading-tight">Longest Streak</div>
+                      <div className="text-xl sm:text-2xl font-bold text-white drop-shadow-sm mt-auto">
+                        {longestStreak} <span className="text-sm font-normal opacity-80">{longestStreak === 1 ? 'Day' : 'Days'}</span>
+                      </div>
+                    </div>
+                    <div className="flex-1 p-3 sm:p-4 rounded-2xl bg-black/20 backdrop-blur-md border border-white/10 flex flex-col items-center justify-center text-center">
+                      <div className="text-[11px] sm:text-xs font-medium mb-1 text-white/80 leading-tight">Consistency</div>
+                      <div className="text-xl sm:text-2xl font-bold text-white drop-shadow-sm mt-auto">
                         {completionRate}%
                       </div>
                     </div>
@@ -214,7 +222,7 @@ export function ShareMilestoneModal({ habit, overallStats, onClose }: ShareMiles
                   </div>
                   <div className="flex gap-2 w-full px-2">
                     <div className="flex-1 p-3 sm:p-4 rounded-2xl bg-black/20 backdrop-blur-md border border-white/10 flex flex-col items-center justify-center text-center">
-                      <div className="text-[11px] sm:text-xs font-medium mb-1 text-white/80 leading-tight">Completed Tasks</div>
+                      <div className="text-[11px] sm:text-xs font-medium mb-1 text-white/80 leading-tight">Overall Completions</div>
                       <div className="text-xl sm:text-2xl font-bold text-white drop-shadow-sm mt-auto">
                         {overallStats?.totalCompletions || 0}
                       </div>
