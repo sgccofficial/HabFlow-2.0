@@ -315,8 +315,8 @@ export function AnalyticsPage() {
                     tooltip += ` - ${completedCount}/${activeCount} done`;
                   }
                 } else if (isSameDay(date, today)) {
-                  colorClass = 'bg-yellow-400 dark:bg-yellow-500 shadow-sm';
-                  tooltip += ' - Today';
+                  colorClass = 'bg-gray-100 dark:bg-gray-800/30';
+                  tooltip += ' - Today (No active habits)';
                 } else if (isNotCreated) {
                   colorClass = 'bg-gray-100 dark:bg-gray-800/30';
                   tooltip += ' - Not created yet';

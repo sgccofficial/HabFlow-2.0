@@ -1,0 +1,6 @@
+{
+  "firestore": {
+    "database": "ai-studio-habitflow-9701ef34-18b3-4365-93b7-2b69882dce5c",
+    "rules": "firestore.rules"
+  }
+}

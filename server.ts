@@ -4,53 +4,25 @@ import { createServer as createViteServer } from "vite";
 import webpush from "web-push";
 import fs from "fs";
 import crypto from 'crypto';
+import { initializeApp } from 'firebase/app';
+import { getFirestore, doc, getDoc, setDoc, getDocs, collection } from 'firebase/firestore';
 
-// Use a local file for subscriptions if Firebase Admin is not configured
-const SUBSCRIPTIONS_FILE = 'subscriptions.json';
-
-const getSubscriptions = () => {
-  if (fs.existsSync(SUBSCRIPTIONS_FILE)) {
-    try {
-      return JSON.parse(fs.readFileSync(SUBSCRIPTIONS_FILE, 'utf-8'));
-    } catch (e) {
-      return {};
-    }
-  }
-  return {};
-};
-
-const saveSubscriptions = (subs: any) => {
-  fs.writeFileSync(SUBSCRIPTIONS_FILE, JSON.stringify(subs, null, 2));
-};
+const configStr = fs.readFileSync(path.join(process.cwd(), 'src', 'lib', 'firebase-config.json'), 'utf-8');
+const firebaseConfig = JSON.parse(configStr);
+const fbApp = initializeApp(firebaseConfig, 'server');
+const db = getFirestore(fbApp, firebaseConfig.firestoreDatabaseId || '(default)');
 
 const app = express();
 const PORT = 3000;
 app.use(express.json());
 
-// Load or generate VAPID keys
 let vapidKeys: { publicKey: string, privateKey: string };
-if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
-  vapidKeys = {
-    publicKey: process.env.VAPID_PUBLIC_KEY,
-    privateKey: process.env.VAPID_PRIVATE_KEY
-  };
-} else if (fs.existsSync('vapid-keys.json')) {
-  vapidKeys = JSON.parse(fs.readFileSync('vapid-keys.json', 'utf-8'));
-} else {
-  vapidKeys = webpush.generateVAPIDKeys();
-  fs.writeFileSync('vapid-keys.json', JSON.stringify(vapidKeys));
-}
-
-webpush.setVapidDetails(
-  'mailto:example@example.com',
-  vapidKeys.publicKey,
-  vapidKeys.privateKey
-);
 
 // Hash endpoint to create a safe document ID
 const getDocId = (endpoint: string) => crypto.createHash('sha256').update(endpoint).digest('hex');
 
 app.get('/api/vapidPublicKey', (req, res) => {
+  if (!vapidKeys) return res.status(500).json({ error: 'Not ready' });
   res.send(vapidKeys.publicKey);
 });
 
@@ -59,13 +31,12 @@ app.post('/api/subscribe', async (req, res) => {
     const { subscription } = req.body;
     const docId = getDocId(subscription.endpoint);
     
-    const subs = getSubscriptions();
-    if (!subs[docId]) {
-      subs[docId] = { sub: subscription, activeTimers: [], dailyReminders: [] };
-    } else {
-      subs[docId].sub = subscription;
-    }
-    saveSubscriptions(subs);
+    const docRef = doc(db, 'subscriptions', docId);
+    const snap = await getDoc(docRef);
+    let subData: any = snap.exists() ? snap.data() : { activeTimers: [], dailyReminders: [] };
+    
+    subData.sub = subscription;
+    await setDoc(docRef, subData);
     
     res.status(201).json({});
   } catch (err) {
@@ -79,18 +50,17 @@ app.post('/api/sync-tasks', async (req, res) => {
     const { subscription, activeTimers, dailyReminders, timezoneOffset } = req.body;
     const docId = getDocId(subscription.endpoint);
     
-    const subs = getSubscriptions();
-    if (!subs[docId]) {
-      subs[docId] = { sub: subscription, activeTimers: [], dailyReminders: [] };
-    } else {
-      subs[docId].sub = subscription;
-    }
+    const docRef = doc(db, 'subscriptions', docId);
+    const snap = await getDoc(docRef);
+    let subData: any = snap.exists() ? snap.data() : { activeTimers: [], dailyReminders: [] };
     
-    if (activeTimers !== undefined) subs[docId].activeTimers = activeTimers;
+    subData.sub = subscription;
+    
+    if (activeTimers !== undefined) subData.activeTimers = activeTimers;
     if (dailyReminders !== undefined) {
-      const existingReminders = subs[docId].dailyReminders || [];
+      const existingReminders = subData.dailyReminders || [];
       const now = Date.now();
-      subs[docId].dailyReminders = dailyReminders.map((nr: any) => {
+      subData.dailyReminders = dailyReminders.map((nr: any) => {
         const ex = existingReminders.find((er: any) => er.title === nr.title && er.time === nr.time);
         if (ex) {
           if (ex.lastSentTimestamp) nr.lastSentTimestamp = ex.lastSentTimestamp;
@@ -101,10 +71,9 @@ app.post('/api/sync-tasks', async (req, res) => {
         return nr;
       });
     }
-    if (timezoneOffset !== undefined) subs[docId].timezoneOffset = timezoneOffset;
+    if (timezoneOffset !== undefined) subData.timezoneOffset = timezoneOffset;
     
-    saveSubscriptions(subs);
-    
+    await setDoc(docRef, subData);
     res.status(200).json({});
   } catch (err) {
     console.error(err);
@@ -114,96 +83,100 @@ app.post('/api/sync-tasks', async (req, res) => {
 
 // Process Notifications Function
 async function processNotifications() {
-  const subs = getSubscriptions();
+  if (!vapidKeys) return;
   const now = Date.now();
-
-  for (const docId of Object.keys(subs)) {
-    const s = subs[docId];
-    let modified = false;
-
-    // Process Timers
-    if (s.activeTimers && s.activeTimers.length > 0) {
-      let sentAny = false;
-      const newTimers = [];
-      for (const timer of s.activeTimers) {
-        if (!timer.sent && now >= timer.time) {
-          try {
-            await webpush.sendNotification(s.sub, JSON.stringify({ title: timer.title, body: timer.body }));
-          } catch (e) {
-            console.error('Push failed for timer', e);
-          }
-          sentAny = true;
-        } else if (!timer.sent) {
-          newTimers.push(timer); // keep if not sent
-        }
-      }
-      if (sentAny || newTimers.length !== s.activeTimers.length) {
-        s.activeTimers = newTimers;
-        modified = true;
-      }
-    }
-
-    // Process Reminders
-    if (s.dailyReminders && s.dailyReminders.length > 0) {
-      for (const r of s.dailyReminders) {
-        const userTime = new Date(now - ((s.timezoneOffset || 0) * 60000));
-        const todayStr = userTime.toISOString().split('T')[0];
-        const currentDayOfWeek = userTime.getUTCDay();
-        const isTargetDay = r.targetDays ? r.targetDays.includes(currentDayOfWeek) : true;
-        const isCompleted = r.dates && r.dates.includes(todayStr);
-
-        const [rHr, rMin] = r.time.split(':').map(Number);
-        const rTimeMins = rHr * 60 + rMin;
-        const currentMins = userTime.getUTCHours() * 60 + userTime.getUTCMinutes();
-
-        if (isTargetDay && !isCompleted && currentMins >= rTimeMins) {
-          const lastSentTimestamp = r.lastSentTimestamp || 0;
-          const createdTs = r.createdTs || 0;
-          
-          const lastSentDate = new Date(lastSentTimestamp - ((s.timezoneOffset || 0) * 60000));
-          const lastSentTodayStr = lastSentDate.toISOString().split('T')[0];
-          const sentToday = lastSentTimestamp > 0 && lastSentTodayStr === todayStr;
-
-          let shouldSend = false;
-
-          if (!sentToday) {
-            const createdDate = new Date(createdTs - ((s.timezoneOffset || 0) * 60000));
-            const createdTodayStr = createdDate.toISOString().split('T')[0];
-            const createdToday = createdTs > 0 && createdTodayStr === todayStr;
-            const createdMins = createdDate.getUTCHours() * 60 + createdDate.getUTCMinutes();
-
-            if (createdToday && createdMins >= rTimeMins) {
-               if (now - createdTs >= 120 * 60 * 1000) {
-                 shouldSend = true;
-               }
-            } else {
-               shouldSend = true;
-            }
-          } else {
-            if (now - lastSentTimestamp >= 120 * 60 * 1000) {
-              shouldSend = true;
-            }
-          }
-
-          if (shouldSend) {
-            r.lastSentTimestamp = now;
-            modified = true;
+  
+  try {
+    const snap = await getDocs(collection(db, 'subscriptions'));
+    
+    for (const d of snap.docs) {
+      const s = d.data();
+      let modified = false;
+      
+      // Process Timers
+      if (s.activeTimers && s.activeTimers.length > 0) {
+        let sentAny = false;
+        const newTimers = [];
+        for (const timer of s.activeTimers) {
+          if (!timer.sent && now >= timer.time) {
             try {
-              await webpush.sendNotification(s.sub, JSON.stringify({ 
-                title: `Daily Reminder - ${r.title}...`, 
-                body: `Let's build this streak to ${(r.streak || 0) + 1} 🔥` 
-              }));
-            } catch(e) {
-              console.error('Push failed for reminder', e);
+              await webpush.sendNotification(s.sub, JSON.stringify({ title: timer.title, body: timer.body }));
+            } catch (e) {
+              console.error('Push failed for timer', e);
+            }
+            sentAny = true;
+          } else if (!timer.sent) {
+            newTimers.push(timer); // keep if not sent
+          }
+        }
+        if (sentAny || newTimers.length !== s.activeTimers.length) {
+          s.activeTimers = newTimers;
+          modified = true;
+        }
+      }
+      
+      // Process Reminders
+      if (s.dailyReminders && s.dailyReminders.length > 0) {
+        for (const r of s.dailyReminders) {
+          const userTime = new Date(now - ((s.timezoneOffset || 0) * 60000));
+          const todayStr = userTime.toISOString().split('T')[0];
+          const currentDayOfWeek = userTime.getUTCDay();
+          const isTargetDay = r.targetDays ? r.targetDays.includes(currentDayOfWeek) : true;
+          const isCompleted = r.dates && r.dates.includes(todayStr);
+          const [rHr, rMin] = r.time.split(':').map(Number);
+          const rTimeMins = rHr * 60 + rMin;
+          const currentMins = userTime.getUTCHours() * 60 + userTime.getUTCMinutes();
+          
+          if (isTargetDay && !isCompleted && currentMins >= rTimeMins) {
+            const lastSentTimestamp = r.lastSentTimestamp || 0;
+            const createdTs = r.createdTs || 0;
+            
+            const lastSentDate = new Date(lastSentTimestamp - ((s.timezoneOffset || 0) * 60000));
+            const lastSentTodayStr = lastSentDate.toISOString().split('T')[0];
+            const sentToday = lastSentTimestamp > 0 && lastSentTodayStr === todayStr;
+            
+            let shouldSend = false;
+            if (!sentToday) {
+              const createdDate = new Date(createdTs - ((s.timezoneOffset || 0) * 60000));
+              const createdTodayStr = createdDate.toISOString().split('T')[0];
+              const createdToday = createdTs > 0 && createdTodayStr === todayStr;
+              const createdMins = createdDate.getUTCHours() * 60 + createdDate.getUTCMinutes();
+              
+              if (createdToday && createdMins >= rTimeMins) {
+                 if (now - createdTs >= 120 * 60 * 1000) {
+                   shouldSend = true;
+                 }
+              } else {
+                 shouldSend = true;
+              }
+            } else {
+              if (now - lastSentTimestamp >= 120 * 60 * 1000) {
+                shouldSend = true;
+              }
+            }
+            
+            if (shouldSend) {
+              r.lastSentTimestamp = now;
+              modified = true;
+              try {
+                await webpush.sendNotification(s.sub, JSON.stringify({ 
+                   title: `Daily Reminder - ${r.title}...`, 
+                   body: `Let's build this streak to ${(r.streak || 0) + 1} 🔥` 
+                 }));
+              } catch(e) {
+                console.error('Push failed for reminder', e);
+              }
             }
           }
         }
       }
+      
+      if (modified) {
+        await setDoc(d.ref, s);
+      }
     }
-
-    if (modified) {
-      saveSubscriptions(subs);
-    }
+  } catch (e) {
+    console.error('Error processing notifications:', e);
   }
 }
 
@@ -217,6 +190,23 @@ app.get('/api/cron', async (req, res) => {
 });
 
 async function startServer() {
+  if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+    vapidKeys = {
+      publicKey: process.env.VAPID_PUBLIC_KEY,
+      privateKey: process.env.VAPID_PRIVATE_KEY
+    };
+  } else {
+    const docRef = doc(db, 'settings', 'vapidKeys');
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+      vapidKeys = snap.data() as any;
+    } else {
+      vapidKeys = webpush.generateVAPIDKeys();
+      await setDoc(docRef, vapidKeys);
+    }
+  }
+  webpush.setVapidDetails('mailto:example@example.com', vapidKeys.publicKey, vapidKeys.privateKey);
+
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -230,7 +220,7 @@ async function startServer() {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
-
+  
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
