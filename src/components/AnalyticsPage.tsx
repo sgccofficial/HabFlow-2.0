@@ -182,7 +182,13 @@ export function AnalyticsPage() {
     const todayStr = formatDate(today);
     
     habits.forEach(h => {
-      allTimeCompletions += h.dates.length;
+      let validComps = 0;
+      h.dates.forEach(dStr => {
+        if (!isHabitDayFrozen(h, dStr, todayStr)) {
+          validComps++;
+        }
+      });
+      allTimeCompletions += validComps;
     });
     
     activeHabitsList.forEach(h => {
@@ -259,7 +265,7 @@ export function AnalyticsPage() {
             } else {
               // Overview
               const activeHabitsList = habits.filter(h => !h.isFrozen);
-              if (activeHabitsList.length === 0) {
+              if (habits.length === 0) {
                 colorClass = isSameDay(date, today) ? 'bg-yellow-400 dark:bg-yellow-500 shadow-sm' : 'bg-gray-100 dark:bg-gray-800/30';
               } else {
                 const isNotCreated = habits.length > 0 ? dStr < [...habits].sort((a, b) => a.created.localeCompare(b.created))[0].created : true;

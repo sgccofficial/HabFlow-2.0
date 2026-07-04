@@ -11,6 +11,7 @@ interface ShareMilestoneModalProps {
   habit?: Habit;
   overallStats?: {
     totalCompletions: number;
+    allTimeCompletions: number;
     activeHabits: number;
     consistencyRate: number;
   };
@@ -64,7 +65,7 @@ export function ShareMilestoneModal({ habit, overallStats, onClose }: ShareMiles
   const shareTitle = habit ? `${habit.name} Milestone` : `${shortName}'s Habits Journey`;
   const shareText = habit 
     ? `I've built ${habit.name} for ${streak} days with ${completionRate}% consistency!`
-    : `I've reached ${overallStats?.totalCompletions} completions across ${overallStats?.activeHabits} active tasks with ${completionRate}% consistency!`;
+    : `I've reached ${overallStats?.allTimeCompletions} completions across ${overallStats?.activeHabits} active tasks with ${completionRate}% consistency!`;
   const shareFileName = habit
     ? `milestone-${habit.name.replace(/\s+/g, '-').toLowerCase()}.png`
     : `milestone-overall.png`;
@@ -224,7 +225,7 @@ export function ShareMilestoneModal({ habit, overallStats, onClose }: ShareMiles
                     <div className="flex-1 p-3 sm:p-4 rounded-2xl bg-black/20 backdrop-blur-md border border-white/10 flex flex-col items-center justify-center text-center">
                       <div className="text-[11px] sm:text-xs font-medium mb-1 text-white/80 leading-tight">Overall Completions</div>
                       <div className="text-xl sm:text-2xl font-bold text-white drop-shadow-sm mt-auto">
-                        {overallStats?.totalCompletions || 0}
+                        {overallStats?.allTimeCompletions || 0}
                       </div>
                     </div>
                     <div className="flex-1 p-3 sm:p-4 rounded-2xl bg-black/20 backdrop-blur-md border border-white/10 flex flex-col items-center justify-center text-center">
