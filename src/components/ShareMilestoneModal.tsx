@@ -9,6 +9,7 @@ import { useAppContext } from '../store/AppContext';
 
 interface ShareMilestoneModalProps {
   habit?: Habit;
+  habitCompletionRate?: number;
   overallStats?: {
     totalCompletions: number;
     allTimeCompletions: number;
@@ -18,7 +19,7 @@ interface ShareMilestoneModalProps {
   onClose: () => void;
 }
 
-export function ShareMilestoneModal({ habit, overallStats, onClose }: ShareMilestoneModalProps) {
+export function ShareMilestoneModal({ habit, habitCompletionRate, overallStats, onClose }: ShareMilestoneModalProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const { user, appSettings } = useAppContext();
   const [isSharing, setIsSharing] = useState(false);
@@ -35,8 +36,12 @@ export function ShareMilestoneModal({ habit, overallStats, onClose }: ShareMiles
   if (habit) {
     streak = calculateStreak(habit);
     longestStreak = calculateLongestStreak(habit);
-    const daysSinceCreation = Math.max(1, Math.floor((new Date().getTime() - new Date(habit.created).getTime()) / (1000 * 3600 * 24)) + 1);
-    completionRate = Math.min(100, Math.round((habit.dates.length / daysSinceCreation) * 100));
+    if (habitCompletionRate !== undefined) {
+      completionRate = habitCompletionRate;
+    } else {
+      const daysSinceCreation = Math.max(1, Math.floor((new Date().getTime() - new Date(habit.created).getTime()) / (1000 * 3600 * 24)) + 1);
+      completionRate = Math.min(100, Math.round((habit.dates.length / daysSinceCreation) * 100));
+    }
     habitColor = habit.color;
   } else if (overallStats) {
     completionRate = overallStats.consistencyRate;

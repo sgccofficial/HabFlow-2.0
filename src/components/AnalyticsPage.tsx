@@ -147,6 +147,7 @@ export function AnalyticsPage() {
     const daysSinceCreation = Math.max(1, Math.floor((today.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24)) + 1);
     
     let validDaysSinceCreation = 0;
+    let validCompletions = 0;
     const todayStr = formatDate(today);
     
     for (let i = 0; i < daysSinceCreation; i++) {
@@ -157,10 +158,11 @@ export function AnalyticsPage() {
       const isFrozen = isHabitDayFrozen(selectedHabit, dStr, todayStr);
       if (!isFrozen) {
         validDaysSinceCreation++;
+        if (selectedHabit.dates.includes(dStr)) validCompletions++;
       }
     }
     
-    const completionRate = validDaysSinceCreation > 0 ? Math.round((selectedHabit.dates.length / validDaysSinceCreation) * 100) : 0;
+    const completionRate = validDaysSinceCreation > 0 ? Math.round((validCompletions / validDaysSinceCreation) * 100) : 0;
 
     // Activity over last 30 days
     const activityOverTime = last30Days.map(date => {
@@ -458,6 +460,7 @@ export function AnalyticsPage() {
             {showShareModal && (
               <ShareMilestoneModal 
                 habit={selectedHabit} 
+                habitCompletionRate={habitAnalytics.completionRate}
                 onClose={() => setShowShareModal(false)} 
               />
             )}
