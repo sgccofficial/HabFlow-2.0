@@ -279,7 +279,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!subscription) return;
 
     const dailyReminders = currentHabits
-      .filter(h => h.reminderTime)
+      .filter(h => h.reminderTime && !h.isFrozen)
       .map(h => ({
         title: h.name,
         time: h.reminderTime,
@@ -309,7 +309,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     
     // We get current daily reminders
     const dailyReminders = habits
-      .filter(h => h.reminderTime)
+      .filter(h => h.reminderTime && !h.isFrozen)
       .map(h => ({ title: h.name, time: h.reminderTime, lastSentDay: null, targetDays: h.targetDays, dates: h.dates, streak: calculateStreak(h) }));
 
     const timerObj = {
@@ -338,7 +338,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const clearServerTimer = async () => {
     if (!swSubscription) return;
     const dailyReminders = habits
-      .filter(h => h.reminderTime)
+      .filter(h => h.reminderTime && !h.isFrozen)
       .map(h => ({ title: h.name, time: h.reminderTime, lastSentDay: null, targetDays: h.targetDays, dates: h.dates, streak: calculateStreak(h) }));
 
     try {
