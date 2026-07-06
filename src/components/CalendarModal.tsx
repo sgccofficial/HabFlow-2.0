@@ -100,8 +100,8 @@ export function CalendarModal({ habit, onClose }: CalendarModalProps) {
               
               if (isCurrentMonth) {
                 if (isFrozen) {
-                  bgColor = "bg-blue-400 dark:bg-blue-500";
-                  textColor = "text-white font-bold";
+                  bgColor = "bg-blue-100 dark:bg-blue-900/40";
+                  textColor = "text-blue-700 dark:text-blue-400 font-bold";
                 } else if (isCompleted) {
                   bgColor = "bg-green-100 dark:bg-green-900/40";
                   textColor = "text-green-700 dark:text-green-400 font-bold";
@@ -109,8 +109,13 @@ export function CalendarModal({ habit, onClose }: CalendarModalProps) {
                   const dayOfWeek = day.getDay();
                   const isTargetDay = habit.targetDays ? habit.targetDays.includes(dayOfWeek) : true;
                   if (isTargetDay) {
-                    bgColor = "bg-red-50 dark:bg-red-900/20";
-                    textColor = "text-red-500 dark:text-red-400";
+                    if (dStr === todayStr) {
+                      bgColor = "bg-yellow-100 dark:bg-yellow-900/40";
+                      textColor = "text-yellow-700 dark:text-yellow-400 font-bold";
+                    } else {
+                      bgColor = "bg-red-50 dark:bg-red-900/20";
+                      textColor = "text-red-500 dark:text-red-400 font-bold";
+                    }
                   } else {
                     bgColor = "bg-gray-100 dark:bg-gray-800/50";
                     textColor = "text-gray-400 dark:text-gray-500";
