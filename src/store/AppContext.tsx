@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { Habit, JournalEntry, Page, JournalSettings } from '../types';
 import { formatDate, calculateStreak } from '../lib/utils';
 
@@ -39,6 +39,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   });
 
   const [dataLoadedForUser, setDataLoadedForUser] = useState<string | null>(user ? user.id : null);
+  const isRemoteUpdate = useRef(false);
 
   const getStorageKey = (key: string) => {
     return user ? `${key}_${user.id}` : key;
