@@ -80,96 +80,129 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return saved ? JSON.parse(saved) : {};
   });
 
-  // When user changes, reload data
+  // When user auth changes, synchronize Firestore data
   useEffect(() => {
-    let unsubscribe = () => {};
-    if (user) {
-      localStorage.setItem('habitflow_current_user', JSON.stringify(user));
-      
-      const loadFirebaseData = async () => {
-        try {
-          const { db } = await import('../lib/firebase');
-          const { doc, getDoc, setDoc } = await import('firebase/firestore');
-          
-          const { onSnapshot } = await import('firebase/firestore');
-          let initialLoad = true;
-          unsubscribe = onSnapshot(doc(db, 'users', user.id), (userDoc) => {
-            if (userDoc.exists()) {
-              const data = userDoc.data();
-              if (data.habits) {
-                setHabits(prev => {
-                  if (JSON.stringify(prev) !== JSON.stringify(data.habits)) {
-                    lastSyncedHabits.current = JSON.stringify(data.habits);
-                    return data.habits;
-                  }
-                  return prev;
-                });
+    let unsubscribeSnapshot = () => {};
+    let unsubscribeAuth = () => {};
+
+    const initAuthAndSync = async () => {
+      try {
+        const { auth, db } = await import('../lib/firebase');
+        const { onAuthStateChanged } = await import('firebase/auth');
+        const { doc, onSnapshot, getDoc, setDoc } = await import('firebase/firestore');
+
+        unsubscribeAuth = onAuthStateChanged(auth, async (fbUser) => {
+          unsubscribeSnapshot();
+
+          if (fbUser) {
+            let userData = user;
+            try {
+              const userDoc = await getDoc(doc(db, 'users', fbUser.uid));
+              if (userDoc.exists()) {
+                userData = userDoc.data();
+                setUser(userData);
+                localStorage.setItem('habitflow_current_user', JSON.stringify(userData));
               }
-              if (data.journal) {
-                setJournal(prev => {
-                  if (JSON.stringify(prev) !== JSON.stringify(data.journal)) {
-                    lastSyncedJournal.current = JSON.stringify(data.journal);
-                    return data.journal;
-                  }
-                  return prev;
-                });
-              }
-              if (data.journalSettings) {
-                setJournalSettings(prev => {
-                  if (JSON.stringify(prev) !== JSON.stringify(data.journalSettings)) {
-                    lastSyncedJournalSettings.current = JSON.stringify(data.journalSettings);
-                    return data.journalSettings;
-                  }
-                  return prev;
-                });
-              }
-              if (data.appSettings) {
-                setAppSettings(prev => {
-                  if (JSON.stringify(prev) !== JSON.stringify(data.appSettings)) {
-                    lastSyncedAppSettings.current = JSON.stringify(data.appSettings);
-                    return data.appSettings;
-                  }
-                  return prev;
-                });
-              }
-            } else if (initialLoad) {
-              // Migrate local to remote if there is anything
-              const h = localStorage.getItem(`habitflow_habits_${user.id}`);
-              if (h) setHabits(JSON.parse(h));
-              const j = localStorage.getItem(`habitflow_journal_${user.id}`);
-              if (j) setJournal(JSON.parse(j));
+            } catch (e) {
+              console.error("Error fetching user profile:", e);
             }
-            if (initialLoad) {
-              initialLoad = false;
-              setDataLoadedForUser(user.id);
-            }
-          });
-        } catch (error) {
-          console.error("Failed to load Firebase data", error);
-        }
-      };
-      loadFirebaseData();
-    } else {
-      localStorage.removeItem('habitflow_current_user');
-      const h = localStorage.getItem('habitflow_habits');
-      setHabits(h ? JSON.parse(h) : []);
-      const j = localStorage.getItem('habitflow_journal');
-      setJournal(j ? JSON.parse(j) : []);
-      const js = localStorage.getItem('habitflow_journal_settings');
-      setJournalSettings(js ? JSON.parse(js) : {});
-      const as = localStorage.getItem('habitflow_app_settings');
-      setAppSettings(as ? JSON.parse(as) : {});
-      setDataLoadedForUser(null);
-    }
-    return () => unsubscribe();
-  }, [user]);
+
+            let initialLoad = true;
+            unsubscribeSnapshot = onSnapshot(
+              doc(db, 'users', fbUser.uid),
+              (userDoc) => {
+                if (userDoc.exists()) {
+                  const data = userDoc.data();
+                  if (data.habits) {
+                    setHabits(prev => {
+                      if (JSON.stringify(prev) !== JSON.stringify(data.habits)) {
+                        lastSyncedHabits.current = JSON.stringify(data.habits);
+                        return data.habits;
+                      }
+                      return prev;
+                    });
+                  }
+                  if (data.journal) {
+                    setJournal(prev => {
+                      if (JSON.stringify(prev) !== JSON.stringify(data.journal)) {
+                        lastSyncedJournal.current = JSON.stringify(data.journal);
+                        return data.journal;
+                      }
+                      return prev;
+                    });
+                  }
+                  if (data.journalSettings) {
+                    setJournalSettings(prev => {
+                      if (JSON.stringify(prev) !== JSON.stringify(data.journalSettings)) {
+                        lastSyncedJournalSettings.current = JSON.stringify(data.journalSettings);
+                        return data.journalSettings;
+                      }
+                      return prev;
+                    });
+                  }
+                  if (data.appSettings) {
+                    setAppSettings(prev => {
+                      if (JSON.stringify(prev) !== JSON.stringify(data.appSettings)) {
+                        lastSyncedAppSettings.current = JSON.stringify(data.appSettings);
+                        return data.appSettings;
+                      }
+                      return prev;
+                    });
+                  }
+                } else if (initialLoad) {
+                  // If new remote doc, migrate any local storage
+                  const localHabits = localStorage.getItem(`habitflow_habits_${fbUser.uid}`) || localStorage.getItem('habitflow_habits');
+                  if (localHabits) {
+                    const parsed = JSON.parse(localHabits);
+                    setHabits(parsed);
+                    setDoc(doc(db, 'users', fbUser.uid), JSON.parse(JSON.stringify({ habits: parsed })), { merge: true }).catch(console.error);
+                  }
+                }
+
+                if (initialLoad) {
+                  initialLoad = false;
+                  setDataLoadedForUser(fbUser.uid);
+                }
+              },
+              (err) => {
+                console.error("Firestore onSnapshot error:", err);
+              }
+            );
+          } else {
+            setUser(null);
+            localStorage.removeItem('habitflow_current_user');
+            const h = localStorage.getItem('habitflow_habits');
+            setHabits(h ? JSON.parse(h) : []);
+            const j = localStorage.getItem('habitflow_journal');
+            setJournal(j ? JSON.parse(j) : []);
+            const js = localStorage.getItem('habitflow_journal_settings');
+            setJournalSettings(js ? JSON.parse(js) : {});
+            const as = localStorage.getItem('habitflow_app_settings');
+            setAppSettings(as ? JSON.parse(as) : {});
+            setDataLoadedForUser(null);
+          }
+        });
+      } catch (error) {
+        console.error("Failed to initialize Firebase Auth/Sync", error);
+      }
+    };
+
+    initAuthAndSync();
+
+    return () => {
+      unsubscribeSnapshot();
+      unsubscribeAuth();
+    };
+  }, []);
 
   const saveToFirebase = async (dataToUpdate: any) => {
     if (user && dataLoadedForUser === user.id) {
       try {
         const { db } = await import('../lib/firebase');
         const { doc, setDoc } = await import('firebase/firestore');
-        await setDoc(doc(db, 'users', user.id), dataToUpdate, { merge: true });
+        // Clean any undefined fields which cause Firestore setDoc to throw invalid-argument
+        const cleanPayload = JSON.parse(JSON.stringify(dataToUpdate));
+        await setDoc(doc(db, 'users', user.id), cleanPayload, { merge: true });
       } catch (error) {
         console.error("Failed to save to Firebase", error);
       }
