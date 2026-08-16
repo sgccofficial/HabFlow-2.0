@@ -60,11 +60,7 @@ export function HabitCard({ habit, onEdit, onOpenCalendar, dragHandleProps }: Ha
       <div className="flex-grow min-w-0 cursor-pointer" onClick={onOpenCalendar} role="button">
         <h3 className="font-semibold text-gray-900 dark:text-gray-100 truncate">{habit.name}</h3>
         <div className="text-sm text-gray-500 dark:text-gray-400 flex flex-wrap items-center gap-x-2 gap-y-1 mt-0.5">
-          {habit.isFrozen ? (
-            <span className="text-[11px] font-semibold text-blue-500 bg-blue-50 dark:bg-blue-950/30 px-2 py-0.5 rounded-full border border-blue-100 dark:border-blue-800/30 flex items-center gap-1 whitespace-nowrap">🧊 {streak}</span>
-          ) : (
-            <span className="text-[11px] font-semibold text-orange-500 bg-orange-50 dark:bg-orange-950/30 px-2 py-0.5 rounded-full border border-orange-100 dark:border-orange-800/30 flex items-center gap-1 whitespace-nowrap">🔥 {streak}</span>
-          )}
+          
           {!habit.isFrozen && habit.reminderTime && (
             <span className="flex items-center gap-0.5 text-xs bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded-md whitespace-nowrap">
               <LucideIcons.Bell className="w-3 h-3" />
@@ -75,6 +71,11 @@ export function HabitCard({ habit, onEdit, onOpenCalendar, dragHandleProps }: Ha
       </div>
 
       <div className="flex items-center gap-2 flex-shrink-0">
+        {habit.isFrozen ? (
+          <span className="text-sm font-semibold text-blue-500 bg-blue-50 dark:bg-blue-950/30 px-2 py-1 rounded-full border border-blue-100 dark:border-blue-800/30 flex items-center justify-center whitespace-nowrap" title="Streak paused">🧊</span>
+        ) : (
+          <span className="text-sm font-semibold text-orange-500 bg-orange-50 dark:bg-orange-950/30 px-2.5 py-1 rounded-full border border-orange-100 dark:border-orange-800/30 flex items-center gap-1 whitespace-nowrap">🔥 {streak}</span>
+        )}
         <button
           onClick={onEdit}
           className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
