@@ -242,9 +242,67 @@ export function AnalyticsPage() {
   }, [habits, today]);
 
   const todayStr = formatDate(today);
-  const todayCompletedHabits = useMemo(() => {
-    return habits.filter(h => checkDayStatus(h, todayStr) === "completed");
-  }, [habits, todayStr]);
+  const todayDayOfWeek = today.getDay();
+  const todayScheduledHabits = useMemo(() => {
+    return habits.filter(h => {
+      if (isHabitDayFrozen(h, todayStr, todayStr)) return false;
+      const targetDays = h.targetDays || [0, 1, 2, 3, 4, 5, 6];
+      if (!targetDays.includes(todayDayOfWeek)) return false;
+      return true;
+    });
+  }, [habits, todayStr, todayDayOfWeek]);
+
+  const builtHabits = useMemo(() => todayScheduledHabits.filter(h => checkDayStatus(h, todayStr) === "completed"), [todayScheduledHabits, todayStr]);
+  const underConstructionHabits = useMemo(() => todayScheduledHabits.filter(h => checkDayStatus(h, todayStr) !== "completed"), [todayScheduledHabits, todayStr]);
+
+  const renderHabitList = (habitList: typeof habits, showCheck: boolean) => (
+    <div className="space-y-2">
+      {habitList.map(habit => {
+        const streak = calculateStreak(habit);
+        return (
+          <div
+            key={habit.id}
+            onClick={() => handleSelectHabit(habit.id)}
+            role="button"
+            tabIndex={0}
+            className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-all border border-gray-100 dark:border-gray-700/50 cursor-pointer group"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div
+                className="w-9 h-9 rounded-lg flex items-center justify-center text-white flex-shrink-0 shadow-sm"
+                style={{ backgroundColor: habit.color }}
+              >
+                {getIcon(habit.icon)}
+              </div>
+              <div className="min-w-0">
+                <h4 className="font-medium text-sm text-gray-900 dark:text-white truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                  {habit.name}
+                </h4>
+                {habit.category && (
+                  <span className="text-xs text-gray-400 dark:text-gray-500 block truncate">
+                    {habit.category}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+              {streak > 0 ? (
+                <span className="text-xs font-semibold text-orange-500 bg-orange-50 dark:bg-orange-950/30 px-2 py-0.5 rounded-full border border-orange-100 dark:border-orange-800/30 flex items-center gap-1">
+                  🔥 {streak}
+                </span>
+              ) : (
+                <span className="text-xs font-semibold text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full border border-gray-200 dark:border-gray-700 flex items-center gap-1">
+                  0
+                </span>
+              )}
+              {showCheck && <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
 
   const renderBlocks = (specificHabit?: any) => {
     const todayStr = formatDate(today);
@@ -423,7 +481,7 @@ export function AnalyticsPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800/30">
-                    {todayCompletedHabits.length}
+                    {builtHabits.length} / {underConstructionHabits.length}
                   </span>
                   {isTodayTasksOpen ? (
                       <ChevronUp className="w-5 h-5 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300" />
@@ -434,54 +492,25 @@ export function AnalyticsPage() {
               </div>
 
               {isTodayTasksOpen && (
-                todayCompletedHabits.length > 0 ? (
-                  <div className="space-y-2 mt-3">
-                    {todayCompletedHabits.map(habit => {
-                      const streak = calculateStreak(habit);
-                      return (
-                        <div
-                          key={habit.id}
-                          onClick={() => handleSelectHabit(habit.id)}
-                          role="button"
-                          tabIndex={0}
-                          className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-all border border-gray-100 dark:border-gray-700/50 cursor-pointer group"
-                        >
-                          <div className="flex items-center gap-3 min-w-0">
-                            <div
-                              className="w-9 h-9 rounded-lg flex items-center justify-center text-white flex-shrink-0 shadow-sm"
-                              style={{ backgroundColor: habit.color }}
-                            >
-                              {getIcon(habit.icon)}
-                            </div>
-                            <div className="min-w-0">
-                              <h4 className="font-medium text-sm text-gray-900 dark:text-white truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                                {habit.name}
-                              </h4>
-                              {habit.category && (
-                                <span className="text-xs text-gray-400 dark:text-gray-500 block truncate">
-                                  {habit.category}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-2 flex-shrink-0 ml-3">
-                            {streak > 0 && (
-                              <span className="text-xs font-semibold text-orange-500 bg-orange-50 dark:bg-orange-950/30 px-2 py-0.5 rounded-full border border-orange-100 dark:border-orange-800/30 flex items-center gap-1">
-                                🔥 {streak}
-                              </span>
-                            )}
-                            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="py-6 text-center text-sm text-gray-400 dark:text-gray-500">
-                    No builds completed yet today
-                  </div>
-                )
+                <div className="space-y-4 mt-3 pt-2 border-t border-gray-100 dark:border-gray-800/50">
+                  {builtHabits.length > 0 && (
+                    <div>
+                      <h4 className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2 px-1">Built</h4>
+                      {renderHabitList(builtHabits, true)}
+                    </div>
+                  )}
+                  {underConstructionHabits.length > 0 && (
+                    <div>
+                      <h4 className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2 px-1">Under Construction</h4>
+                      {renderHabitList(underConstructionHabits, false)}
+                    </div>
+                  )}
+                  {todayScheduledHabits.length === 0 && (
+                    <div className="py-6 text-center text-sm text-gray-400 dark:text-gray-500">
+                      No tasks scheduled for today
+                    </div>
+                  )}
+                </div>
               )}
             </div>
 

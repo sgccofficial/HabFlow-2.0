@@ -104,7 +104,7 @@ async function processNotifications() {
               await webpush.sendNotification(s.sub, JSON.stringify({ title: timer.title, body: timer.body }));
             } catch (e: any) {
               console.error('Push failed for timer', e);
-              if (e.statusCode === 410 || e.statusCode === 404 || e.statusCode === 403 || (e.body && e.body.includes('Received unexpected response code'))) {
+              if (e.statusCode === 410 || e.statusCode === 404 || e.statusCode === 403 || (e.message && e.message.includes('Received unexpected response code')) || (e.body && e.body.includes('Received unexpected response code'))) {
                  // The subscription is invalid or has expired. Delete it.
                  try {
                    await deleteDoc(d.ref);
@@ -172,7 +172,7 @@ async function processNotifications() {
                  }));
               } catch(e: any) {
                 console.error('Push failed for reminder', e);
-                if (e.statusCode === 410 || e.statusCode === 404 || e.statusCode === 403 || (e.body && e.body.includes('Received unexpected response code'))) {
+                if (e.statusCode === 410 || e.statusCode === 404 || e.statusCode === 403 || (e.message && e.message.includes('Received unexpected response code')) || (e.body && e.body.includes('Received unexpected response code'))) {
                    try {
                      await deleteDoc(d.ref);
                      console.log('Deleted invalid subscription document');
