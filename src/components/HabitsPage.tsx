@@ -424,7 +424,7 @@ export function HabitsPage() {
   };
 
   return (
-    <div className="pb-24 pt-8 px-4">
+    <div className="pt-2 px-4">
       <div className="max-w-3xl mx-auto">
         {isSelectionMode && (
           <div className="fixed bottom-24 left-4 right-4 max-w-3xl mx-auto bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 z-50 p-4 flex items-center justify-between shadow-xl rounded-2xl animate-in slide-in-from-bottom">

@@ -351,7 +351,7 @@ export function TimerPage() {
   };
 
   return (
-    <div className="pt-4 px-4 pb-4 flex flex-col items-center justify-center min-h-[calc(100dvh-6rem)] overflow-hidden">
+    <div className="pt-2 px-4 flex flex-col items-center justify-center min-h-[70vh]">
       <div className="w-full max-w-3xl mx-auto flex flex-col justify-center">
         <header className="mb-4 p-4 rounded-2xl bg-white/40 dark:bg-black/30 backdrop-blur-md shadow-sm border border-white/20 dark:border-white/10 text-center">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Timer</h1>
@@ -437,7 +437,7 @@ export function TimerPage() {
                           setInputValue(formatTime(durationSecs));
                         }
                       }}
-                      className="w-full bg-transparent text-center border-b-2 border-transparent hover:border-indigo-200 focus:border-indigo-500 focus:outline-none text-5xl md:text-7xl lg:text-8xl font-mono tracking-tighter text-gray-900 dark:text-white"
+                      className="w-full bg-transparent text-center border-b-2 border-transparent hover:border-indigo-200 focus:border-indigo-500 focus:outline-none text-5xl md:text-7xl lg:text-8xl font-mono tabular-nums tracking-tighter text-gray-900 dark:text-white"
                       style={{ MozAppearance: 'textfield' }}
                     />
                     <div className="flex gap-1 mt-4">
@@ -448,12 +448,12 @@ export function TimerPage() {
                     </div>
                   </div>
                 ) : (
-                  <span className="text-5xl md:text-7xl lg:text-8xl font-mono tracking-tighter text-gray-900 dark:text-white mb-2">
+                  <span className="text-5xl md:text-7xl lg:text-8xl font-mono tabular-nums tracking-tighter text-gray-900 dark:text-white mb-2">
                     {formatTime(remainingSecs)}
                   </span>
                 )
               ) : (
-                <span className="text-5xl md:text-7xl lg:text-8xl font-mono tracking-tighter text-gray-900 dark:text-white mb-2 ml-2">
+                <span className="text-5xl md:text-7xl lg:text-8xl font-mono tabular-nums tracking-tighter text-gray-900 dark:text-white mb-2 ml-2">
                   {formatSwTime(swTime)}
                 </span>
               )}

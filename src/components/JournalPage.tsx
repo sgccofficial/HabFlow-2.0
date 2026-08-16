@@ -146,7 +146,7 @@ export function JournalPage() {
   }, [sortedJournal, habits]);
 
   return (
-    <div className="pb-24 pt-8 px-4">
+    <div className="pt-2 px-4">
       <div className="max-w-3xl mx-auto">
         <header className="mb-6 p-4 rounded-2xl bg-white/40 dark:bg-black/30 backdrop-blur-md shadow-sm border border-white/20 dark:border-white/10">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
