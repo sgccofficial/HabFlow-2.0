@@ -61,9 +61,9 @@ export function HabitCard({ habit, onEdit, onOpenCalendar, dragHandleProps }: Ha
         <h3 className="font-semibold text-gray-900 dark:text-gray-100 truncate">{habit.name}</h3>
         <div className="text-sm text-gray-500 dark:text-gray-400 flex flex-wrap items-center gap-x-2 gap-y-1 mt-0.5">
           {habit.isFrozen ? (
-            <span className="text-[11px] font-semibold text-blue-500 bg-blue-50 dark:bg-blue-950/30 px-2 py-0.5 rounded-full border border-blue-100 dark:border-blue-800/30 flex items-center gap-1 whitespace-nowrap">🧊 Streak paused</span>
+            <span className="text-[11px] font-semibold text-blue-500 bg-blue-50 dark:bg-blue-950/30 px-2 py-0.5 rounded-full border border-blue-100 dark:border-blue-800/30 flex items-center gap-1 whitespace-nowrap">🧊 {streak}</span>
           ) : (
-            <span className="text-[11px] font-semibold text-orange-500 bg-orange-50 dark:bg-orange-950/30 px-2 py-0.5 rounded-full border border-orange-100 dark:border-orange-800/30 flex items-center gap-1 whitespace-nowrap">🔥 {streak} {streak === 1 ? "day streak" : "day streak"}</span>
+            <span className="text-[11px] font-semibold text-orange-500 bg-orange-50 dark:bg-orange-950/30 px-2 py-0.5 rounded-full border border-orange-100 dark:border-orange-800/30 flex items-center gap-1 whitespace-nowrap">🔥 {streak}</span>
           )}
           {!habit.isFrozen && habit.reminderTime && (
             <span className="flex items-center gap-0.5 text-xs bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded-md whitespace-nowrap">

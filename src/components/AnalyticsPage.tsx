@@ -410,7 +410,7 @@ export function AnalyticsPage() {
 
         {selectedHabitId === 'all' ? (
           <div className="space-y-6">
-            {/* Today's Completed Tasks */}
+            {/* Today's Builds */}
             <div className="bg-white dark:bg-gray-900 rounded-2xl p-5 shadow-sm border border-gray-100 dark:border-gray-800">
               <div 
                 className="flex items-center justify-between mb-3 cursor-pointer group"
@@ -419,11 +419,11 @@ export function AnalyticsPage() {
               >
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                  <h3 className="font-semibold text-gray-900 dark:text-white">Today's Completed Tasks</h3>
+                  <h3 className="font-semibold text-gray-900 dark:text-white">Today's Builds</h3>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800/30">
-                    {todayCompletedHabits.length} {todayCompletedHabits.length === 1 ? 'task' : 'tasks'}
+                    {todayCompletedHabits.length} {todayCompletedHabits.length === 1 ? 'build' : 'builds'}
                   </span>
                   {todayCompletedHabits.length > 0 && (
                     isTodayTasksOpen ? (
@@ -435,9 +435,10 @@ export function AnalyticsPage() {
                 </div>
               </div>
 
-              {todayCompletedHabits.length > 0 && isTodayTasksOpen ? (
-                <div className="space-y-2 mt-3">
-                  {todayCompletedHabits.map(habit => {
+              {todayCompletedHabits.length > 0 ? (
+                isTodayTasksOpen && (
+                  <div className="space-y-2 mt-3">
+                    {todayCompletedHabits.map(habit => {
                     const streak = calculateStreak(habit);
                     return (
                       <div
@@ -477,10 +478,11 @@ export function AnalyticsPage() {
                       </div>
                     );
                   })}
-                </div>
+                  </div>
+                )
               ) : (
                 <div className="py-6 text-center text-sm text-gray-400 dark:text-gray-500">
-                  No tasks completed yet today
+                  No builds completed yet today
                 </div>
               )}
             </div>
