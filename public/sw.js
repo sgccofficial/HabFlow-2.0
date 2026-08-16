@@ -18,7 +18,7 @@ self.addEventListener('push', e => {
 self.addEventListener('install', (e) => {
   self.skipWaiting();
   e.waitUntil(
-    caches.open('habitflow-cache-v0.8').then((cache) => {
+    caches.open('habitflow-cache-v0.9').then((cache) => {
       return cache.addAll([
         '/',
         '/index.html',
@@ -32,7 +32,7 @@ self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys().then((keyList) => {
       return Promise.all(keyList.map((key) => {
-        if (key !== 'habitflow-cache-v0.8') {
+        if (key !== 'habitflow-cache-v0.9') {
           return caches.delete(key);
         }
       }));
@@ -45,17 +45,16 @@ self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
   
   const url = new URL(e.request.url);
-  if (url.pathname.startsWith('/api/') || url.hostname.includes('googleapis.com') || url.hostname.includes('firebase') || url.hostname.includes('google.com') || url.hostname.includes('gstatic.com') || url.hostname.includes('auth')) {
+  // Only cache same-origin requests (static assets)
+  if (url.origin !== self.location.origin) {
     return;
   }
   
   if (e.request.mode === 'navigate' || e.request.headers.get('accept').includes('text/html')) {
     e.respondWith(
       fetch(e.request).then((fetchRes) => {
-        return caches.open('habitflow-cache-v0.8').then((cache) => {
-          if (e.request.url.startsWith('http')) {
-            cache.put(e.request, fetchRes.clone());
-          }
+        return caches.open('habitflow-cache-v0.9').then((cache) => {
+          cache.put(e.request, fetchRes.clone());
           return fetchRes;
         });
       }).catch(() => {
@@ -66,15 +65,12 @@ self.addEventListener('fetch', (e) => {
     );
     return;
   }
-
+  
   e.respondWith(
     caches.match(e.request).then((response) => {
       return response || fetch(e.request).then((fetchRes) => {
-        return caches.open('habitflow-cache-v0.8').then((cache) => {
-          // Cache successful GET requests
-          if (e.request.url.startsWith('http')) {
-            cache.put(e.request, fetchRes.clone());
-          }
+        return caches.open('habitflow-cache-v0.9').then((cache) => {
+          cache.put(e.request, fetchRes.clone());
           return fetchRes;
         });
       }).catch(() => {});

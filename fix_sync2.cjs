@@ -64,26 +64,74 @@ const newSnapshotLogic = `          unsubscribe = onSnapshot(doc(db, 'users', us
             }`;
 code = code.replace(oldSnapshotLogic, newSnapshotLogic);
 
-// Update useEffects for sync
-const updateEffect = (stateName, refName) => {
-  const oldRegex = new RegExp(\`  useEffect\\(\\(\\) => \\{\\s+if \\(dataLoadedForUser === \\(user \\? user\\.id : null\\)\\) \\{\\s+localStorage\\.setItem\\(getStorageKey\\('habitflow_\${stateName === 'journalSettings' ? 'journal_settings' : stateName === 'appSettings' ? 'app_settings' : stateName}'\\), JSON\\.stringify\\(\${stateName}\\)\\);\\s+if \\(user && !isRemoteUpdate\\.current\\) saveToFirebase\\(\\{ \${stateName} \\}\\);([\\s\\S]*?)\\}  \\}, \\[\\${stateName}, user, dataLoadedForUser\\]\\);\\n?\`);
-  
-  const newEffect = `  useEffect(() => {
+// Habits
+code = code.replace(`  useEffect(() => {
     if (dataLoadedForUser === (user ? user.id : null)) {
-      const stateStr = JSON.stringify(${stateName});
-      localStorage.setItem(getStorageKey('habitflow_${stateName === 'journalSettings' ? 'journal_settings' : stateName === 'appSettings' ? 'app_settings' : stateName}'), stateStr);
-      if (user && ${refName}.current !== stateStr) {
-        ${refName}.current = stateStr;
-        saveToFirebase({ ${stateName} });
-      }$1}
-  }, [${stateName}, user, dataLoadedForUser]);
-`;
-  code = code.replace(oldRegex, newEffect);
-};
+      localStorage.setItem(getStorageKey('habitflow_habits'), JSON.stringify(habits));
+      if (user && !isRemoteUpdate.current) saveToFirebase({ habits });
+      syncNotificationSettings(habits);
+    }
+  }, [habits, user, dataLoadedForUser]);`, `  useEffect(() => {
+    if (dataLoadedForUser === (user ? user.id : null)) {
+      const stateStr = JSON.stringify(habits);
+      localStorage.setItem(getStorageKey('habitflow_habits'), stateStr);
+      if (user && lastSyncedHabits.current !== stateStr) {
+        lastSyncedHabits.current = stateStr;
+        saveToFirebase({ habits });
+      }
+      syncNotificationSettings(habits);
+    }
+  }, [habits, user, dataLoadedForUser]);`);
 
-updateEffect('habits', 'lastSyncedHabits');
-updateEffect('journal', 'lastSyncedJournal');
-updateEffect('journalSettings', 'lastSyncedJournalSettings');
-updateEffect('appSettings', 'lastSyncedAppSettings');
+// Journal
+code = code.replace(`  useEffect(() => {
+    if (dataLoadedForUser === (user ? user.id : null)) {
+      localStorage.setItem(getStorageKey('habitflow_journal'), JSON.stringify(journal));
+      if (user && !isRemoteUpdate.current) saveToFirebase({ journal });
+    }
+  }, [journal, user, dataLoadedForUser]);`, `  useEffect(() => {
+    if (dataLoadedForUser === (user ? user.id : null)) {
+      const stateStr = JSON.stringify(journal);
+      localStorage.setItem(getStorageKey('habitflow_journal'), stateStr);
+      if (user && lastSyncedJournal.current !== stateStr) {
+        lastSyncedJournal.current = stateStr;
+        saveToFirebase({ journal });
+      }
+    }
+  }, [journal, user, dataLoadedForUser]);`);
+
+// Journal Settings
+code = code.replace(`  useEffect(() => {
+    if (dataLoadedForUser === (user ? user.id : null)) {
+      localStorage.setItem(getStorageKey('habitflow_journal_settings'), JSON.stringify(journalSettings));
+      if (user && !isRemoteUpdate.current) saveToFirebase({ journalSettings });
+    }
+  }, [journalSettings, user, dataLoadedForUser]);`, `  useEffect(() => {
+    if (dataLoadedForUser === (user ? user.id : null)) {
+      const stateStr = JSON.stringify(journalSettings);
+      localStorage.setItem(getStorageKey('habitflow_journal_settings'), stateStr);
+      if (user && lastSyncedJournalSettings.current !== stateStr) {
+        lastSyncedJournalSettings.current = stateStr;
+        saveToFirebase({ journalSettings });
+      }
+    }
+  }, [journalSettings, user, dataLoadedForUser]);`);
+
+// App Settings
+code = code.replace(`  useEffect(() => {
+    if (dataLoadedForUser === (user ? user.id : null)) {
+      localStorage.setItem(getStorageKey('habitflow_app_settings'), JSON.stringify(appSettings));
+      if (user && !isRemoteUpdate.current) saveToFirebase({ appSettings });
+    }
+  }, [appSettings, user, dataLoadedForUser]);`, `  useEffect(() => {
+    if (dataLoadedForUser === (user ? user.id : null)) {
+      const stateStr = JSON.stringify(appSettings);
+      localStorage.setItem(getStorageKey('habitflow_app_settings'), stateStr);
+      if (user && lastSyncedAppSettings.current !== stateStr) {
+        lastSyncedAppSettings.current = stateStr;
+        saveToFirebase({ appSettings });
+      }
+    }
+  }, [appSettings, user, dataLoadedForUser]);`);
 
 fs.writeFileSync('src/store/AppContext.tsx', code);
