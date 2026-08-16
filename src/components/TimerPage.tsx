@@ -351,13 +351,13 @@ export function TimerPage() {
   };
 
   return (
-    <div className="pt-2 px-4 flex flex-col items-center justify-center min-h-[70vh]">
-      <div className="w-full max-w-3xl mx-auto flex flex-col justify-center">
-        <header className="mb-4 p-4 rounded-2xl bg-white/40 dark:bg-black/30 backdrop-blur-md shadow-sm border border-white/20 dark:border-white/10 text-center">
+    <div className="min-h-screen w-full max-w-3xl mx-auto px-4 flex flex-col justify-center pb-28 pt-8">
+      <div className="w-full">
+        <header className="mb-6 p-4 rounded-2xl bg-white/40 dark:bg-black/30 backdrop-blur-md shadow-sm border border-white/20 dark:border-white/10">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Timer</h1>
         </header>
 
-        <div className="bg-white dark:bg-gray-900 rounded-3xl p-7 shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col items-center">
+        <div className="bg-white dark:bg-gray-900 rounded-3xl p-6 sm:p-7 shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col items-center w-full">
           
           {!isRunning && !swIsRunning ? (
             <select 

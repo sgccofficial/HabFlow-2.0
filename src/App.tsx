@@ -591,12 +591,12 @@ function AppContent() {
         </div>
       )}
 
-      <div className="pt-4 pb-24">
+      <main className="w-full min-h-screen">
         {currentPage === 'habits' && <HabitsPage />}
         {currentPage === 'timer' && <TimerPage />}
         {currentPage === 'journal' && <JournalPage />}
         {currentPage === 'analytics' && <AnalyticsPage />}
-      </div>
+      </main>
       
       <BottomNav />
 
