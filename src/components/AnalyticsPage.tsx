@@ -9,6 +9,7 @@ import { getIcon } from './HabitCard';
 export function AnalyticsPage() {
   const { habits, journal, activeHabitId, setActiveHabitId } = useAppContext();
   const [selectedHabitId, setSelectedHabitId] = useState<string>(activeHabitId || 'all');
+  const [isTodayTasksOpen, setIsTodayTasksOpen] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
 
   // Sync with activeHabitId if it changes from outside
