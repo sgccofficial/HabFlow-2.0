@@ -425,9 +425,9 @@ export function HabitsPage() {
 
   return (
     <div className="pb-24 pt-8 px-4">
-      <div className="max-w-md mx-auto">
+      <div className="max-w-3xl mx-auto">
         {isSelectionMode && (
-          <div className="fixed bottom-24 left-4 right-4 max-w-md mx-auto bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 z-50 p-4 flex items-center justify-between shadow-xl rounded-2xl animate-in slide-in-from-bottom">
+          <div className="fixed bottom-24 left-4 right-4 max-w-3xl mx-auto bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 z-50 p-4 flex items-center justify-between shadow-xl rounded-2xl animate-in slide-in-from-bottom">
             <div className="flex items-center gap-3">
               <button onClick={() => { setIsSelectionMode(false); setSelectedIds(new Set()); }} className="p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500">
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>

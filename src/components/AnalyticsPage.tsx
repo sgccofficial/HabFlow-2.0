@@ -288,7 +288,7 @@ export function AnalyticsPage() {
 
             <div className="flex items-center gap-2 flex-shrink-0 ml-3">
               {streak > 0 ? (
-                <span className="text-xs font-semibold text-orange-500 bg-orange-50 dark:bg-orange-950/30 px-2 py-0.5 rounded-full border border-orange-100 dark:border-orange-800/30 flex items-center gap-1">
+                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full border flex items-center gap-1 transition-all ${showCheck ? 'text-orange-500 bg-orange-50 dark:bg-orange-950/30 border-orange-100 dark:border-orange-800/30' : 'text-gray-400 bg-gray-100 dark:text-gray-500 dark:bg-gray-800 border-gray-200 dark:border-gray-700 grayscale opacity-70'}`}>
                   🔥 {streak}
                 </span>
               ) : (
@@ -436,7 +436,7 @@ export function AnalyticsPage() {
 
   return (
     <div className="pb-24 pt-8 px-4">
-      <div className="max-w-md mx-auto">
+      <div className="max-w-3xl mx-auto">
         <header className="mb-6 p-4 rounded-2xl bg-white/40 dark:bg-black/30 backdrop-blur-md shadow-sm border border-white/20 dark:border-white/10">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Analytics</h1>
         </header>
@@ -476,11 +476,11 @@ export function AnalyticsPage() {
                 role="button"
               >
                 <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                  <CheckCircle2 className="w-5 h-5 text-indigo-500" />
                   <h3 className="font-semibold text-gray-900 dark:text-white">Today's Builds</h3>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800/30">
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800/30">
                     {builtHabits.length} / {underConstructionHabits.length}
                   </span>
                   {isTodayTasksOpen ? (

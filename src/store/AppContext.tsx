@@ -88,15 +88,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const { doc, getDoc, setDoc } = await import('firebase/firestore');
           
           const { onSnapshot } = await import('firebase/firestore');
-          
           let initialLoad = true;
           unsubscribe = onSnapshot(doc(db, 'users', user.id), (userDoc) => {
             if (userDoc.exists()) {
               const data = userDoc.data();
+              isRemoteUpdate.current = true;
               if (data.habits) setHabits(prev => JSON.stringify(prev) !== JSON.stringify(data.habits) ? data.habits : prev);
               if (data.journal) setJournal(prev => JSON.stringify(prev) !== JSON.stringify(data.journal) ? data.journal : prev);
               if (data.journalSettings) setJournalSettings(prev => JSON.stringify(prev) !== JSON.stringify(data.journalSettings) ? data.journalSettings : prev);
               if (data.appSettings) setAppSettings(prev => JSON.stringify(prev) !== JSON.stringify(data.appSettings) ? data.appSettings : prev);
+              setTimeout(() => { isRemoteUpdate.current = false; }, 500);
             } else if (initialLoad) {
               // Migrate local to remote if there is anything
               const h = localStorage.getItem(`habitflow_habits_${user.id}`);
@@ -186,7 +187,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (dataLoadedForUser === (user ? user.id : null)) {
       localStorage.setItem(getStorageKey('habitflow_habits'), JSON.stringify(habits));
-      if (user) saveToFirebase({ habits });
+      if (user && !isRemoteUpdate.current) saveToFirebase({ habits });
       syncNotificationSettings(habits);
     }
   }, [habits, user, dataLoadedForUser]);
@@ -194,21 +195,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (dataLoadedForUser === (user ? user.id : null)) {
       localStorage.setItem(getStorageKey('habitflow_journal'), JSON.stringify(journal));
-      if (user) saveToFirebase({ journal });
+      if (user && !isRemoteUpdate.current) saveToFirebase({ journal });
     }
   }, [journal, user, dataLoadedForUser]);
 
   useEffect(() => {
     if (dataLoadedForUser === (user ? user.id : null)) {
       localStorage.setItem(getStorageKey('habitflow_journal_settings'), JSON.stringify(journalSettings));
-      if (user) saveToFirebase({ journalSettings });
+      if (user && !isRemoteUpdate.current) saveToFirebase({ journalSettings });
     }
   }, [journalSettings, user, dataLoadedForUser]);
 
   useEffect(() => {
     if (dataLoadedForUser === (user ? user.id : null)) {
       localStorage.setItem(getStorageKey('habitflow_app_settings'), JSON.stringify(appSettings));
-      if (user) saveToFirebase({ appSettings });
+      if (user && !isRemoteUpdate.current) saveToFirebase({ appSettings });
     }
   }, [appSettings, user, dataLoadedForUser]);
 
