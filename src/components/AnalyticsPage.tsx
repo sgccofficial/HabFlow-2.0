@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../store/AppContext';
 import { format, subDays, eachDayOfInterval, parseISO, getDay, isSameDay, startOfWeek, endOfWeek, isAfter, isBefore, isToday } from 'date-fns';
 import { calculateStreak, calculateLongestStreak, cn, isHabitDayFrozen, formatDate, getHabitTargetValue, getHabitProgressValue, checkDayStatus } from '../lib/utils';
-import { TrendingUp, Award, CalendarDays, Activity, Share2, CheckCircle2 } from 'lucide-react';
+import { TrendingUp, Award, CalendarDays, Activity, Share2, CheckCircle2, ChevronUp, ChevronDown } from 'lucide-react';
 import { ShareMilestoneModal } from './ShareMilestoneModal';
 import { getIcon } from './HabitCard';
 
@@ -19,6 +19,15 @@ export function AnalyticsPage() {
   const handleSelectHabit = (id: string) => {
     setSelectedHabitId(id);
     setActiveHabitId(id === 'all' ? null : id);
+    if (id !== 'all') {
+      setTimeout(() => {
+        const el = document.getElementById(`habit-tab-${id}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      }, 50);
+    }
   };
 
   // Helpers for dates
@@ -386,6 +395,7 @@ export function AnalyticsPage() {
           {habits.map(h => (
             <button
               key={h.id}
+              id={`habit-tab-${h.id}`}
               onClick={() => handleSelectHabit(h.id)}
               className={cn(
                 "flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-colors",
@@ -401,17 +411,30 @@ export function AnalyticsPage() {
           <div className="space-y-6">
             {/* Today's Completed Tasks */}
             <div className="bg-white dark:bg-gray-900 rounded-2xl p-5 shadow-sm border border-gray-100 dark:border-gray-800">
-              <div className="flex items-center justify-between mb-3">
+              <div 
+                className="flex items-center justify-between mb-3 cursor-pointer group"
+                onClick={() => setIsTodayTasksOpen(!isTodayTasksOpen)}
+                role="button"
+              >
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-5 h-5 text-emerald-500" />
                   <h3 className="font-semibold text-gray-900 dark:text-white">Today's Completed Tasks</h3>
                 </div>
-                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800/30">
-                  {todayCompletedHabits.length} {todayCompletedHabits.length === 1 ? 'task' : 'tasks'}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800/30">
+                    {todayCompletedHabits.length} {todayCompletedHabits.length === 1 ? 'task' : 'tasks'}
+                  </span>
+                  {todayCompletedHabits.length > 0 && (
+                    isTodayTasksOpen ? (
+                      <ChevronUp className="w-5 h-5 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300" />
+                    ) : (
+                      <ChevronDown className="w-5 h-5 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300" />
+                    )
+                  )}
+                </div>
               </div>
 
-              {todayCompletedHabits.length > 0 ? (
+              {todayCompletedHabits.length > 0 && isTodayTasksOpen ? (
                 <div className="space-y-2 mt-3">
                   {todayCompletedHabits.map(habit => {
                     const streak = calculateStreak(habit);

@@ -5,6 +5,7 @@ import webpush from "web-push";
 import fs from "fs";
 import crypto from 'crypto';
 import { initializeApp } from 'firebase/app';
+import { deleteDoc } from 'firebase/firestore';
 import { getFirestore, doc, getDoc, setDoc, getDocs, collection } from 'firebase/firestore';
 
 const configStr = fs.readFileSync(path.join(process.cwd(), 'src', 'lib', 'firebase-config.json'), 'utf-8');
@@ -101,8 +102,14 @@ async function processNotifications() {
           if (!timer.sent && now >= timer.time) {
             try {
               await webpush.sendNotification(s.sub, JSON.stringify({ title: timer.title, body: timer.body }));
-            } catch (e) {
+            } catch (e: any) {
               console.error('Push failed for timer', e);
+              if (e.statusCode === 410 || e.statusCode === 404 || e.statusCode === 403 || (e.body && e.body.includes('Received unexpected response code'))) {
+                 // The subscription is invalid or has expired. Delete it.
+                 try {
+                   await deleteDoc(d.ref);
+                 } catch(deleteErr) {}
+              }
             }
             sentAny = true;
           } else if (!timer.sent) {
@@ -163,8 +170,14 @@ async function processNotifications() {
                    title: `Daily Reminder - ${r.title}...`, 
                    body: `Let's build this streak to ${(r.streak || 0) + 1} 🔥` 
                  }));
-              } catch(e) {
+              } catch(e: any) {
                 console.error('Push failed for reminder', e);
+                if (e.statusCode === 410 || e.statusCode === 404 || e.statusCode === 403 || (e.body && e.body.includes('Received unexpected response code'))) {
+                   try {
+                     await deleteDoc(d.ref);
+                     console.log('Deleted invalid subscription document');
+                   } catch(deleteErr) {}
+                }
               }
             }
           }
