@@ -396,7 +396,7 @@ export function TimerPage() {
             </button>
           </div>
 
-          <div className="relative w-72 h-72 mb-6 flex items-center justify-center">
+          <div className="relative w-72 h-72 md:w-96 md:h-96 lg:w-[28rem] lg:h-[28rem] mb-6 flex items-center justify-center">
             {/* SVG Ring */}
             {mode === 'countdown' && (
               <svg className="absolute inset-0 w-full h-full transform -rotate-90" viewBox="0 0 100 100">
@@ -437,7 +437,7 @@ export function TimerPage() {
                           setInputValue(formatTime(durationSecs));
                         }
                       }}
-                      className="w-56 bg-transparent text-center border-b-2 border-transparent hover:border-indigo-200 focus:border-indigo-500 focus:outline-none text-5xl font-mono tracking-tighter text-gray-900 dark:text-white"
+                      className="w-full bg-transparent text-center border-b-2 border-transparent hover:border-indigo-200 focus:border-indigo-500 focus:outline-none text-5xl md:text-7xl lg:text-8xl font-mono tracking-tighter text-gray-900 dark:text-white"
                       style={{ MozAppearance: 'textfield' }}
                     />
                     <div className="flex gap-1 mt-4">
@@ -448,12 +448,12 @@ export function TimerPage() {
                     </div>
                   </div>
                 ) : (
-                  <span className="text-5xl font-mono tracking-tighter text-gray-900 dark:text-white mb-2">
+                  <span className="text-5xl md:text-7xl lg:text-8xl font-mono tracking-tighter text-gray-900 dark:text-white mb-2">
                     {formatTime(remainingSecs)}
                   </span>
                 )
               ) : (
-                <span className="text-4xl font-mono tracking-tighter text-gray-900 dark:text-white mb-2 ml-2">
+                <span className="text-5xl md:text-7xl lg:text-8xl font-mono tracking-tighter text-gray-900 dark:text-white mb-2 ml-2">
                   {formatSwTime(swTime)}
                 </span>
               )}

@@ -307,7 +307,8 @@ export function AnalyticsPage() {
   const renderBlocks = (specificHabit?: any) => {
     const todayStr = formatDate(today);
     return (
-      <div className="grid grid-cols-7 gap-2 mt-2 w-full max-w-[280px] sm:max-w-sm mx-auto">
+      <div className="flex w-full justify-center mt-2">
+        <div className="grid grid-cols-7 gap-2 sm:gap-3 w-full sm:max-w-[360px]">
         {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
           <div key={`day-${i}`} className="text-[10px] font-medium text-gray-400 dark:text-gray-500 text-center mb-1">{d}</div>
         ))}
@@ -430,6 +431,7 @@ export function AnalyticsPage() {
             />
           );
         })}
+      </div>
       </div>
     );
   };
