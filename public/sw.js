@@ -1,9 +1,14 @@
 self.addEventListener('push', e => {
-  const data = e.data.json();
-  console.log('Push Recieved...');
+  let data;
+  try {
+    data = e.data ? e.data.json() : {};
+  } catch (err) {
+    data = { title: 'HabitFlow', body: 'New notification from HabitFlow.' };
+  }
+  
   e.waitUntil(
-    self.registration.showNotification(data.title, {
-      body: data.body,
+    self.registration.showNotification(data.title || 'HabitFlow', {
+      body: data.body || 'You have a new notification.',
       icon: '/icon-192.png',
       badge: '/badge.png'
     })
@@ -13,7 +18,7 @@ self.addEventListener('push', e => {
 self.addEventListener('install', (e) => {
   self.skipWaiting();
   e.waitUntil(
-    caches.open('habitflow-cache-v0.2').then((cache) => {
+    caches.open('habitflow-cache-v0.5').then((cache) => {
       return cache.addAll([
         '/',
         '/index.html',
@@ -27,7 +32,7 @@ self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys().then((keyList) => {
       return Promise.all(keyList.map((key) => {
-        if (key !== 'habitflow-cache-v0.2') {
+        if (key !== 'habitflow-cache-v0.5') {
           return caches.delete(key);
         }
       }));
@@ -42,7 +47,7 @@ self.addEventListener('fetch', (e) => {
   if (e.request.mode === 'navigate' || e.request.headers.get('accept').includes('text/html')) {
     e.respondWith(
       fetch(e.request).then((fetchRes) => {
-        return caches.open('habitflow-cache-v0.2').then((cache) => {
+        return caches.open('habitflow-cache-v0.5').then((cache) => {
           if (e.request.url.startsWith('http')) {
             cache.put(e.request, fetchRes.clone());
           }
@@ -60,7 +65,7 @@ self.addEventListener('fetch', (e) => {
   e.respondWith(
     caches.match(e.request).then((response) => {
       return response || fetch(e.request).then((fetchRes) => {
-        return caches.open('habitflow-cache-v0.2').then((cache) => {
+        return caches.open('habitflow-cache-v0.5').then((cache) => {
           // Cache successful GET requests
           if (e.request.url.startsWith('http')) {
             cache.put(e.request, fetchRes.clone());
@@ -95,18 +100,20 @@ self.addEventListener('periodicsync', (event) => {
 self.addEventListener('notificationclick', event => {
   event.notification.close();
   event.waitUntil(
-    clients.matchAll({ type: 'window' }).then(windowClients => {
-      // Check if there is already a window/tab open with the target URL
-      for (let i = 0; i < windowClients.length; i++) {
-        let client = windowClients[i];
-        if (client.url === '/' && 'focus' in client) {
-          return client.focus();
+    self.registration.getNotifications().then(notifications => {
+      notifications.forEach(notification => notification.close());
+    }).then(() => {
+      return clients.matchAll({ type: 'window' }).then(windowClients => {
+        for (let i = 0; i < windowClients.length; i++) {
+          let client = windowClients[i];
+          if (client.url === '/' && 'focus' in client) {
+            return client.focus();
+          }
         }
-      }
-      // If not, then open the target URL in a new window/tab.
-      if (clients.openWindow) {
-        return clients.openWindow('/');
-      }
+        if (clients.openWindow) {
+          return clients.openWindow('/');
+        }
+      });
     })
   );
 });

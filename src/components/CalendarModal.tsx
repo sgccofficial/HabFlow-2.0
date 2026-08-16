@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Habit } from '../types';
 import { useAppContext } from '../store/AppContext';
 import { X, ChevronLeft, ChevronRight, Timer, BookOpen, PieChart } from 'lucide-react';
-import { formatDate, calculateStreak, cn, isHabitDayFrozen } from '../lib/utils';
+import { formatDate, calculateStreak, cn, isHabitDayFrozen, checkDayStatus } from '../lib/utils';
 import { startOfMonth, endOfMonth, eachDayOfInterval, format, isSameMonth, addMonths, subMonths, isAfter, isBefore } from 'date-fns';
 
 interface CalendarModalProps {
@@ -92,7 +92,9 @@ export function CalendarModal({ habit, onClose }: CalendarModalProps) {
               const isCurrentMonth = isSameMonth(day, currentMonth);
               const isFuture = dStr > todayStr;
               const isBeforeCreated = dStr < habit.created;
-              const isCompleted = habit.dates.includes(dStr);
+              const status = checkDayStatus(habit, dStr);
+              const isCompleted = status === 'completed';
+              const isPartial = status === 'partial';
               const isFrozen = isHabitDayFrozen(habit, dStr, todayStr);
               
               let bgColor = "";
@@ -105,6 +107,10 @@ export function CalendarModal({ habit, onClose }: CalendarModalProps) {
                 } else if (isCompleted) {
                   bgColor = "bg-green-100 dark:bg-green-900/40";
                   textColor = "text-green-700 dark:text-green-400 font-bold";
+                } else if (isPartial) {
+                  bgColor = "bg-yellow-100 dark:bg-yellow-900/40";
+                  textColor = "text-yellow-700 dark:text-yellow-400 font-bold";
+                
                 } else if (!isFuture && !isBeforeCreated) {
                   const dayOfWeek = day.getDay();
                   const isTargetDay = habit.targetDays ? habit.targetDays.includes(dayOfWeek) : true;

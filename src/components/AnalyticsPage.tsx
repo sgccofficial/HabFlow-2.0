@@ -1,9 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../store/AppContext';
 import { format, subDays, eachDayOfInterval, parseISO, getDay, isSameDay, startOfWeek, endOfWeek, isAfter, isBefore, isToday } from 'date-fns';
-import { calculateStreak, calculateLongestStreak, cn, isHabitDayFrozen, formatDate } from '../lib/utils';
-import { TrendingUp, Award, CalendarDays, Activity, Share2 } from 'lucide-react';
+import { calculateStreak, calculateLongestStreak, cn, isHabitDayFrozen, formatDate, getHabitTargetValue, getHabitProgressValue, checkDayStatus } from '../lib/utils';
+import { TrendingUp, Award, CalendarDays, Activity, Share2, CheckCircle2 } from 'lucide-react';
 import { ShareMilestoneModal } from './ShareMilestoneModal';
+import { getIcon } from './HabitCard';
 
 export function AnalyticsPage() {
   const { habits, journal, activeHabitId, setActiveHabitId } = useAppContext();
@@ -157,8 +158,9 @@ export function AnalyticsPage() {
       
       const isFrozen = isHabitDayFrozen(selectedHabit, dStr, todayStr);
       if (!isFrozen) {
-        validDaysSinceCreation++;
-        if (selectedHabit.dates.includes(dStr)) validCompletions++;
+        const tDays = selectedHabit.targetDays || [0, 1, 2, 3, 4, 5, 6];
+        if (tDays.includes(d.getDay())) validDaysSinceCreation++;
+        if (checkDayStatus(selectedHabit, dStr) === 'completed') validCompletions++;
       }
     }
     
@@ -185,11 +187,17 @@ export function AnalyticsPage() {
     
     habits.forEach(h => {
       let validComps = 0;
-      h.dates.forEach(dStr => {
-        if (!isHabitDayFrozen(h, dStr, todayStr)) {
-          validComps++;
+      const tDays = h.targetDays || [0, 1, 2, 3, 4, 5, 6];
+      let todayIdx = today.getTime();
+      let createTime = new Date(h.created + 'T12:00:00').getTime();
+      let days = Math.floor((todayIdx - createTime) / (1000*60*60*24)) + 1;
+      for(let i=0; i<days; i++) {
+        let d = new Date(h.created + 'T12:00:00'); d.setDate(d.getDate() + i);
+        let ds = formatDate(d);
+        if (!isHabitDayFrozen(h, ds, todayStr) && checkDayStatus(h, ds) === 'completed') {
+           validComps++;
         }
-      });
+      }
       allTimeCompletions += validComps;
     });
     
@@ -204,8 +212,9 @@ export function AnalyticsPage() {
         d.setDate(d.getDate() + i);
         const dStr = format(d, 'yyyy-MM-dd');
         if (!isHabitDayFrozen(h, dStr, todayStr)) {
-          validDays++;
-          if (h.dates.includes(dStr)) validCompletions++;
+          const tDays = h.targetDays || [0, 1, 2, 3, 4, 5, 6];
+          if (tDays.includes(d.getDay())) validDays++;
+          if (checkDayStatus(h, dStr) === 'completed') validCompletions++;
         }
       }
       
@@ -221,6 +230,11 @@ export function AnalyticsPage() {
       consistencyRate
     };
   }, [habits, today]);
+
+  const todayStr = formatDate(today);
+  const todayCompletedHabits = useMemo(() => {
+    return habits.filter(h => checkDayStatus(h, todayStr) === "completed");
+  }, [habits, todayStr]);
 
   const renderBlocks = (specificHabit?: any) => {
     const todayStr = formatDate(today);
@@ -239,7 +253,9 @@ export function AnalyticsPage() {
             tooltip += ' (Future)';
           } else {
             if (specificHabit) {
-              const isDone = specificHabit.dates.includes(dStr);
+              const status = checkDayStatus(specificHabit, dStr);
+              const isDone = status === 'completed';
+              const isPartial = status === 'partial';
               const isNotCreated = dStr < specificHabit.created;
               const isFrozen = isHabitDayFrozen(specificHabit, dStr, todayStr);
               const targetDays = specificHabit.targetDays || [0, 1, 2, 3, 4, 5, 6];
@@ -251,6 +267,11 @@ export function AnalyticsPage() {
               } else if (isDone) {
                 colorClass = 'bg-emerald-400 dark:bg-emerald-500 shadow-sm';
                 tooltip += ' - Completed';
+              } else if (isPartial) {
+                const pVal = getHabitProgressValue(specificHabit, dStr);
+                const tVal = getHabitTargetValue(specificHabit);
+                colorClass = 'bg-yellow-400 dark:bg-yellow-500 shadow-sm';
+                tooltip += ` - Partial (${pVal}/${tVal})`;
               } else if (!isTargetDay) {
                 colorClass = 'bg-gray-100 dark:bg-gray-800/30';
                 tooltip += ' - Rest Day';
@@ -275,6 +296,7 @@ export function AnalyticsPage() {
                 let completedCount = 0;
                 let activeCount = 0;
                 let frozenCount = 0;
+                let partialCount = 0;
                 habits.forEach(h => {
                   if (dStr >= h.created) {
                     if (isHabitDayFrozen(h, dStr, todayStr)) {
@@ -282,10 +304,13 @@ export function AnalyticsPage() {
                     } else {
                       const tDays = h.targetDays || [0, 1, 2, 3, 4, 5, 6];
                       const isTDay = tDays.includes(date.getDay());
-                      const isDone = h.dates.includes(dStr);
-                      if (isTDay || isDone) {
+                      const status = checkDayStatus(h, dStr);
+                      const isDone = status === 'completed';
+                      const isPartial = status === 'partial';
+                      if (isTDay || isDone || isPartial) {
                         activeCount++;
                         if (isDone) completedCount++;
+                        else if (isPartial) partialCount++;
                       }
                     }
                   }
@@ -296,13 +321,16 @@ export function AnalyticsPage() {
                   tooltip += ' - Paused';
                 } else if (activeCount > 0) {
                   const ratio = completedCount / activeCount;
-                  if (completedCount === 0) {
+                  if (completedCount === 0 && partialCount === 0) {
                     colorClass = 'bg-red-400 dark:bg-red-500 shadow-sm';
                     tooltip += ' - None done';
+                  } else if (completedCount === 0 && partialCount > 0) {
+                    colorClass = 'bg-yellow-400 dark:bg-yellow-500 shadow-sm';
+                    tooltip += ' - Partial done';
                   } else if (ratio > 0.5) {
                     colorClass = 'bg-emerald-400 dark:bg-emerald-500 shadow-sm';
                     tooltip += ` - ${completedCount}/${activeCount} done`;
-                  } else if (ratio >= 0.4) {
+                  } else if (ratio >= 0.4 || partialCount > 0) {
                     colorClass = 'bg-yellow-400 dark:bg-yellow-500 shadow-sm';
                     tooltip += ` - ${completedCount}/${activeCount} done`;
                   } else {
@@ -371,6 +399,68 @@ export function AnalyticsPage() {
 
         {selectedHabitId === 'all' ? (
           <div className="space-y-6">
+            {/* Today's Completed Tasks */}
+            <div className="bg-white dark:bg-gray-900 rounded-2xl p-5 shadow-sm border border-gray-100 dark:border-gray-800">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                  <h3 className="font-semibold text-gray-900 dark:text-white">Today's Completed Tasks</h3>
+                </div>
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800/30">
+                  {todayCompletedHabits.length} {todayCompletedHabits.length === 1 ? 'task' : 'tasks'}
+                </span>
+              </div>
+
+              {todayCompletedHabits.length > 0 ? (
+                <div className="space-y-2 mt-3">
+                  {todayCompletedHabits.map(habit => {
+                    const streak = calculateStreak(habit);
+                    return (
+                      <div
+                        key={habit.id}
+                        onClick={() => handleSelectHabit(habit.id)}
+                        role="button"
+                        tabIndex={0}
+                        className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-all border border-gray-100 dark:border-gray-700/50 cursor-pointer group"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div
+                            className="w-9 h-9 rounded-lg flex items-center justify-center text-white flex-shrink-0 shadow-sm"
+                            style={{ backgroundColor: habit.color }}
+                          >
+                            {getIcon(habit.icon)}
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="font-medium text-sm text-gray-900 dark:text-white truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                              {habit.name}
+                            </h4>
+                            {habit.category && (
+                              <span className="text-xs text-gray-400 dark:text-gray-500 block truncate">
+                                {habit.category}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+                          {streak > 0 && (
+                            <span className="text-xs font-semibold text-orange-500 bg-orange-50 dark:bg-orange-950/30 px-2 py-0.5 rounded-full border border-orange-100 dark:border-orange-800/30 flex items-center gap-1">
+                              🔥 {streak}
+                            </span>
+                          )}
+                          <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="py-6 text-center text-sm text-gray-400 dark:text-gray-500">
+                  No tasks completed yet today
+                </div>
+              )}
+            </div>
+
             {/* Heatmap/Activity Chart */}
             <div className="bg-white dark:bg-gray-900 rounded-2xl p-5 shadow-sm border border-gray-100 dark:border-gray-800">
               <div className="flex justify-between items-center mb-4">

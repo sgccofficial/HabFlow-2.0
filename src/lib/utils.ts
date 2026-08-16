@@ -33,34 +33,36 @@ export function isHabitDayFrozen(habit: Habit, dStr: string, todayStr: string): 
   return false;
 }
 
-// Calculate streak
-export function calculateStreak(habit: Habit): number {
-  const { created, dates, progress, targetDays: savedTargetDays } = habit;
-  
-  if (dates.length === 0 && (!progress || Object.keys(progress).length === 0)) return 0;
-  
+export function getHabitTargetValue(habit: Habit): number {
   const isTimely = habit.durationGoal !== undefined ? habit.durationGoal > 0 : habit.goalType === 'duration';
   const durationGoal = habit.durationGoal || (habit.goalType === 'duration' ? (habit.durationUnit === 'hr' ? (habit.goalValue || 0) * 3600 : habit.durationUnit === 'min' ? (habit.goalValue || 0) * 60 : (habit.goalValue || 0)) : 0);
   
   const isDaily = habit.dailyCompletions !== undefined ? habit.dailyCompletions > 0 : (habit.goalType === 'daily' || habit.goalType === 'weekly');
   const dailyCompletions = habit.dailyCompletions || ((habit.goalType === 'daily' || habit.goalType === 'weekly') ? habit.goalValue || 1 : 1);
-
+  
   let targetValue = 1;
   if (isTimely) {
     targetValue = durationGoal * (isDaily ? dailyCompletions : 1);
   } else if (isDaily) {
     targetValue = dailyCompletions;
   }
-  
-  const checkDayCompleted = (dStr: string) => {
-    const val = progress?.[dStr] ?? (dates.includes(dStr) ? 1 : 0);
-    const dateObj = new Date(dStr + 'T12:00:00');
-    if (!targetDays.includes(dateObj.getDay())) {
-      return val > 0;
-    }
-    return val >= targetValue;
-  };
+  return targetValue;
+}
 
+export function getHabitProgressValue(habit: Habit, dStr: string): number {
+  return habit.progress?.[dStr] ?? (habit.dates.includes(dStr) ? getHabitTargetValue(habit) : 0);
+}
+
+export function checkDayStatus(habit: Habit, dStr: string): 'completed' | 'partial' | 'none' {
+  const val = getHabitProgressValue(habit, dStr);
+  if (val === 0) return 'none';
+  const targetValue = getHabitTargetValue(habit);
+  
+  return val >= targetValue ? 'completed' : 'partial';
+}
+
+export function calculateStreak(habit: Habit): number {
+  const { created, targetDays: savedTargetDays } = habit;
   const targetDays = savedTargetDays || [0, 1, 2, 3, 4, 5, 6];
   if (targetDays.length === 0) return 0;
 
@@ -73,56 +75,32 @@ export function calculateStreak(habit: Habit): number {
     if (dStr < created) break;
 
     const isFrozen = isHabitDayFrozen(habit, dStr, todayStr);
+    const dayOfWeek = current.getDay();
+    const isTargetDay = targetDays.includes(dayOfWeek);
+    const status = checkDayStatus(habit, dStr);
 
-    if (checkDayCompleted(dStr)) {
+    if (status === 'completed') {
       if (!isFrozen) {
         streak++;
       }
     } else {
       if (!isFrozen) {
-        const dayOfWeek = current.getDay();
-        if (targetDays.includes(dayOfWeek)) {
+        if (isTargetDay) {
           if (dStr !== todayStr) {
             break; // Past required day missed -> streak broken
           }
         }
       }
     }
-    
     current.setDate(current.getDate() - 1);
   }
   return streak;
 }
 
 export function calculateLongestStreak(habit: Habit): number {
-  const { created, dates, progress, targetDays: savedTargetDays } = habit;
-  
-  if (dates.length === 0 && (!progress || Object.keys(progress).length === 0)) return 0;
-  
-  const isTimely = habit.durationGoal !== undefined ? habit.durationGoal > 0 : habit.goalType === 'duration';
-  const durationGoal = habit.durationGoal || (habit.goalType === 'duration' ? (habit.durationUnit === 'hr' ? (habit.goalValue || 0) * 3600 : habit.durationUnit === 'min' ? (habit.goalValue || 0) * 60 : (habit.goalValue || 0)) : 0);
-  
-  const isDaily = habit.dailyCompletions !== undefined ? habit.dailyCompletions > 0 : (habit.goalType === 'daily' || habit.goalType === 'weekly');
-  const dailyCompletions = habit.dailyCompletions || ((habit.goalType === 'daily' || habit.goalType === 'weekly') ? habit.goalValue || 1 : 1);
-
-  let targetValue = 1;
-  if (isTimely) {
-    targetValue = durationGoal * (isDaily ? dailyCompletions : 1);
-  } else if (isDaily) {
-    targetValue = dailyCompletions;
-  }
-  
+  const { created, targetDays: savedTargetDays } = habit;
   const targetDays = savedTargetDays || [0, 1, 2, 3, 4, 5, 6];
   if (targetDays.length === 0) return 0;
-
-  const checkDayCompleted = (dStr: string) => {
-    const val = progress?.[dStr] ?? (dates.includes(dStr) ? 1 : 0);
-    const dateObj = new Date(dStr + 'T12:00:00');
-    if (!targetDays.includes(dateObj.getDay())) {
-      return val > 0;
-    }
-    return val >= targetValue;
-  };
 
   let longestStreak = 0;
   let tempStreak = 0;
@@ -142,8 +120,9 @@ export function calculateLongestStreak(habit: Habit): number {
     if (!isFrozen) {
       const dayOfWeek = d.getDay();
       const isTarget = targetDays.includes(dayOfWeek);
+      const status = checkDayStatus(habit, dStr);
       
-      if (checkDayCompleted(dStr)) {
+      if (status === 'completed') {
         tempStreak++;
         longestStreak = Math.max(longestStreak, tempStreak);
       } else if (isTarget) {
@@ -151,6 +130,5 @@ export function calculateLongestStreak(habit: Habit): number {
       }
     }
   }
-  
   return longestStreak;
 }
