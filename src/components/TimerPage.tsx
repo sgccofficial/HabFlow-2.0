@@ -352,7 +352,7 @@ export function TimerPage() {
 
   return (
     <div className="pt-4 px-4 pb-4 flex flex-col items-center justify-center min-h-[calc(100dvh-6rem)] overflow-hidden">
-      <div className="w-full max-w-[380px] flex flex-col justify-center">
+      <div className="w-full max-w-3xl mx-auto flex flex-col justify-center">
         <header className="mb-4 p-4 rounded-2xl bg-white/40 dark:bg-black/30 backdrop-blur-md shadow-sm border border-white/20 dark:border-white/10 text-center">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Timer</h1>
         </header>

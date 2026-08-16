@@ -591,7 +591,7 @@ function AppContent() {
         </div>
       )}
 
-      <div className="pt-4">
+      <div className="pt-4 pb-28">
         {currentPage === 'habits' && <HabitsPage />}
         {currentPage === 'timer' && <TimerPage />}
         {currentPage === 'journal' && <JournalPage />}

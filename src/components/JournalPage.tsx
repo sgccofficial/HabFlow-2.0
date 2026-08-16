@@ -154,7 +154,7 @@ export function JournalPage() {
           </h1>
           <p className="text-sm text-gray-700 dark:text-gray-300 mt-1 font-medium">
             {journalStats.total} {journalStats.total === 1 ? 'entry' : 'entries'}
-            {journalStats.topHabit && ` • Mostly about ${journalStats.topHabit.name}`}
+            {journalStats.topHabit && !activeHabitId && ` • Mostly about ${journalStats.topHabit.name}`}
           </p>
         </header>
 

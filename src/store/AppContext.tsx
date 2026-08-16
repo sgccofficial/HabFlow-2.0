@@ -38,7 +38,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return saved ? JSON.parse(saved) : null;
   });
 
-  const [dataLoadedForUser, setDataLoadedForUser] = useState<string | null>(user ? user.id : null);
+  const [dataLoadedForUser, setDataLoadedForUser] = useState<string | null>(null);
   const isRemoteUpdate = useRef(false);
 
   const getStorageKey = (key: string) => {
