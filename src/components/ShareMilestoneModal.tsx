@@ -155,55 +155,49 @@ export function ShareMilestoneModal({ habit, habitCompletionRate, overallStats, 
           <div 
             ref={cardRef} 
             className={cn("aspect-square w-full flex flex-col items-center justify-center relative overflow-hidden", selectedTexture.shareClass || selectedTexture.class)}
-            style={{ backgroundColor: selectedTexture.isImage ? '#1f2937' : habitColor, fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+            style={{ backgroundColor: selectedTexture.isImage ? '#1f2937' : habitColor }}
           >
             {selectedTexture.isImage && <div className="absolute inset-0 bg-black/40" />}
             
             <div className="relative z-10 flex flex-col items-center p-8 text-center w-full">
               {habit ? (
                 <>
-                  <h2 
-                    className="text-4xl font-black text-white mb-6 drop-shadow-lg tracking-tight"
-                    style={{ fontFamily: "'Playfair Display', serif" }}
-                  >
+                  <h2 className="text-3xl font-bold text-white mb-6 drop-shadow-md">
                     {habit.name}
                   </h2>
-                  <div className="w-24 h-24 rounded-[2rem] flex items-center justify-center mb-8 shadow-2xl bg-white/20 backdrop-blur-xl text-white border border-white/30">
+                  <div className="w-24 h-24 rounded-3xl flex items-center justify-center mb-8 shadow-xl bg-white/20 backdrop-blur-md text-white border border-white/20">
                     {(() => {
                       const Icon = (LucideIcons as any)[habit.icon] || LucideIcons.CheckCircle;
-                      return <Icon className="w-10 h-10 drop-shadow-md" strokeWidth={2.5} />;
+                      return <Icon className="w-12 h-12" />;
                     })()}
                   </div>
-                  <div className="flex gap-3 w-full px-1">
-                    <div className="flex-1 p-3 sm:p-4 rounded-2xl bg-black/25 backdrop-blur-xl border border-white/10 flex flex-col items-center justify-center text-center shadow-lg">
-                      <div className="text-[10px] sm:text-xs font-semibold mb-1.5 text-white/70 uppercase tracking-widest">Streak</div>
-                      <div className="text-2xl sm:text-3xl font-bold text-white drop-shadow-sm mt-auto" style={{ fontFamily: "'Playfair Display', serif" }}>
-                        {streak} <span className="text-sm font-medium opacity-80" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{streak === 1 ? 'Day' : 'Days'}</span>
+                  <div className="flex gap-2 w-full px-2">
+                    <div className="flex-1 p-3 sm:p-4 rounded-2xl bg-black/20 backdrop-blur-md border border-white/10 flex flex-col items-center justify-center text-center">
+                      <div className="text-[11px] sm:text-xs font-medium mb-1 text-white/80 leading-tight">Current Streak</div>
+                      <div className="text-xl sm:text-2xl font-bold text-white drop-shadow-sm mt-auto">
+                        {streak} <span className="text-sm font-normal opacity-80">{streak === 1 ? 'Day' : 'Days'}</span>
                       </div>
                     </div>
-                    <div className="flex-1 p-3 sm:p-4 rounded-2xl bg-black/25 backdrop-blur-xl border border-white/10 flex flex-col items-center justify-center text-center shadow-lg">
-                      <div className="text-[10px] sm:text-xs font-semibold mb-1.5 text-white/70 uppercase tracking-widest">Record</div>
-                      <div className="text-2xl sm:text-3xl font-bold text-white drop-shadow-sm mt-auto" style={{ fontFamily: "'Playfair Display', serif" }}>
-                        {longestStreak} <span className="text-sm font-medium opacity-80" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{longestStreak === 1 ? 'Day' : 'Days'}</span>
+                    <div className="flex-1 p-3 sm:p-4 rounded-2xl bg-black/20 backdrop-blur-md border border-white/10 flex flex-col items-center justify-center text-center">
+                      <div className="text-[11px] sm:text-xs font-medium mb-1 text-white/80 leading-tight">Longest Streak</div>
+                      <div className="text-xl sm:text-2xl font-bold text-white drop-shadow-sm mt-auto">
+                        {longestStreak} <span className="text-sm font-normal opacity-80">{longestStreak === 1 ? 'Day' : 'Days'}</span>
                       </div>
                     </div>
-                    <div className="flex-1 p-3 sm:p-4 rounded-2xl bg-black/25 backdrop-blur-xl border border-white/10 flex flex-col items-center justify-center text-center shadow-lg">
-                      <div className="text-[10px] sm:text-xs font-semibold mb-1.5 text-white/70 uppercase tracking-widest">Success</div>
-                      <div className="text-2xl sm:text-3xl font-bold text-white drop-shadow-sm mt-auto" style={{ fontFamily: "'Playfair Display', serif" }}>
-                        {completionRate}<span className="text-xl ml-0.5">%</span>
+                    <div className="flex-1 p-3 sm:p-4 rounded-2xl bg-black/20 backdrop-blur-md border border-white/10 flex flex-col items-center justify-center text-center">
+                      <div className="text-[11px] sm:text-xs font-medium mb-1 text-white/80 leading-tight">Consistency</div>
+                      <div className="text-xl sm:text-2xl font-bold text-white drop-shadow-sm mt-auto">
+                        {completionRate}%
                       </div>
                     </div>
                   </div>
                 </>
               ) : (
                 <>
-                  <h2 
-                    className="text-3xl font-black text-white mb-6 drop-shadow-lg tracking-tight px-4"
-                    style={{ fontFamily: "'Playfair Display', serif" }}
-                  >
+                  <h2 className="text-2xl font-bold text-white mb-6 drop-shadow-md text-center px-4">
                     {shortName}'s Habits
                   </h2>
-                  <div className="w-24 h-24 rounded-full flex items-center justify-center mb-8 shadow-2xl bg-white/20 backdrop-blur-xl text-white border border-white/30 overflow-hidden">
+                  <div className="w-24 h-24 rounded-full flex items-center justify-center mb-6 shadow-xl bg-white/20 backdrop-blur-md text-white border border-white/20 overflow-hidden">
                     {user?.photoURL ? (
                       <>
                         <img 
@@ -223,32 +217,32 @@ export function ShareMilestoneModal({ habit, habitCompletionRate, overallStats, 
                           className="w-full h-full bg-white/20 items-center justify-center text-white" 
                           style={{ display: 'none' }}
                         >
-                          <User className="w-10 h-10 drop-shadow-md" strokeWidth={2.5} />
+                          <User className="w-10 h-10" />
                         </div>
                       </>
                     ) : (
                       <div className="w-full h-full bg-white/20 flex items-center justify-center text-white">
-                        <User className="w-10 h-10 drop-shadow-md" strokeWidth={2.5} />
+                        <User className="w-10 h-10" />
                       </div>
                     )}
                   </div>
-                  <div className="flex gap-3 w-full px-1">
-                    <div className="flex-1 p-3 sm:p-4 rounded-2xl bg-black/25 backdrop-blur-xl border border-white/10 flex flex-col items-center justify-center text-center shadow-lg">
-                      <div className="text-[10px] sm:text-xs font-semibold mb-1.5 text-white/70 uppercase tracking-widest">Completed</div>
-                      <div className="text-2xl sm:text-3xl font-bold text-white drop-shadow-sm mt-auto" style={{ fontFamily: "'Playfair Display', serif" }}>
+                  <div className="flex gap-2 w-full px-2">
+                    <div className="flex-1 p-3 sm:p-4 rounded-2xl bg-black/20 backdrop-blur-md border border-white/10 flex flex-col items-center justify-center text-center">
+                      <div className="text-[11px] sm:text-xs font-medium mb-1 text-white/80 leading-tight">Overall Completions</div>
+                      <div className="text-xl sm:text-2xl font-bold text-white drop-shadow-sm mt-auto">
                         {overallStats?.allTimeCompletions || 0}
                       </div>
                     </div>
-                    <div className="flex-1 p-3 sm:p-4 rounded-2xl bg-black/25 backdrop-blur-xl border border-white/10 flex flex-col items-center justify-center text-center shadow-lg">
-                      <div className="text-[10px] sm:text-xs font-semibold mb-1.5 text-white/70 uppercase tracking-widest">Active</div>
-                      <div className="text-2xl sm:text-3xl font-bold text-white drop-shadow-sm mt-auto" style={{ fontFamily: "'Playfair Display', serif" }}>
+                    <div className="flex-1 p-3 sm:p-4 rounded-2xl bg-black/20 backdrop-blur-md border border-white/10 flex flex-col items-center justify-center text-center">
+                      <div className="text-[11px] sm:text-xs font-medium mb-1 text-white/80 leading-tight">Active Tasks</div>
+                      <div className="text-xl sm:text-2xl font-bold text-white drop-shadow-sm mt-auto">
                         {overallStats?.activeHabits || 0}
                       </div>
                     </div>
-                    <div className="flex-1 p-3 sm:p-4 rounded-2xl bg-black/25 backdrop-blur-xl border border-white/10 flex flex-col items-center justify-center text-center shadow-lg">
-                      <div className="text-[10px] sm:text-xs font-semibold mb-1.5 text-white/70 uppercase tracking-widest">Success</div>
-                      <div className="text-2xl sm:text-3xl font-bold text-white drop-shadow-sm mt-auto" style={{ fontFamily: "'Playfair Display', serif" }}>
-                        {completionRate}<span className="text-xl ml-0.5">%</span>
+                    <div className="flex-1 p-3 sm:p-4 rounded-2xl bg-black/20 backdrop-blur-md border border-white/10 flex flex-col items-center justify-center text-center">
+                      <div className="text-[11px] sm:text-xs font-medium mb-1 text-white/80 leading-tight">Consistency</div>
+                      <div className="text-xl sm:text-2xl font-bold text-white drop-shadow-sm mt-auto">
+                        {completionRate}%
                       </div>
                     </div>
                   </div>
