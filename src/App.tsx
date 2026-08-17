@@ -11,7 +11,7 @@ import { TimerPage } from './components/TimerPage';
 import { JournalPage } from './components/JournalPage';
 import { AnalyticsPage } from './components/AnalyticsPage';
 import { formatDate, cn } from './lib/utils';
-import { Moon, Sun, Palette, X, User, LogOut, Check, Camera, Mail, Trash2, AtSign } from 'lucide-react';
+import { Moon, Sun, Palette, X, User, LogOut, Check, Camera, Mail, Trash2, AtSign, Loader2 } from 'lucide-react';
 import { BACKGROUND_COLORS, BACKGROUND_TEXTURES } from './lib/constants';
 import { ImageCropper } from './components/ImageCropper';
 import { Eye, EyeOff } from 'lucide-react';
@@ -24,6 +24,7 @@ function AppContent() {
   const [modalState, setModalState] = useState<{type: 'name' | 'real_name' | 'photo_options' | 'delete' | 'signout' | 'success' | 'auth_options' | 'create_account' | 'sign_in' | null, input: string, nameInput?: string, password?: string, profilePic?: string}>({type: null, input: '', nameInput: '', password: '', profilePic: ''});
   const [showPassword, setShowPassword] = useState(false);
   const [modalError, setModalError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [shareData, setShareData] = useState<{title: string, text: string, url: string} | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -79,6 +80,7 @@ function AppContent() {
 
   const handleModalSubmit = async () => {
     if (!modalState.type) return;
+    setIsSubmitting(true);
     
     try {
       if (modalState.type === 'create_account') {
@@ -260,6 +262,8 @@ function AppContent() {
       setModalState({ type: null, input: '' });
     } catch (error: any) {
       setModalError("Action failed: " + error.message);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -835,12 +839,18 @@ function AppContent() {
                 {modalState.type !== 'auth_options' && (
                   <button
                     onClick={handleModalSubmit}
+                    disabled={isSubmitting}
                     className={cn(
-                      "px-4 py-2 rounded-xl text-sm font-medium text-white transition",
-                      ['delete', 'signout'].includes(modalState.type) ? "bg-red-600 hover:bg-red-700" : "bg-indigo-600 hover:bg-indigo-700"
+                      "px-4 py-2 rounded-xl text-sm font-medium text-white transition flex items-center justify-center min-w-[80px]",
+                      ['delete', 'signout'].includes(modalState.type) ? "bg-red-600 hover:bg-red-700" : "bg-indigo-600 hover:bg-indigo-700",
+                      isSubmitting && "opacity-70 cursor-not-allowed"
                     )}
                   >
-                    {modalState.type === 'create_account' ? 'Create' : modalState.type === 'sign_in' ? 'Sign In' : 'Confirm'}
+                    {isSubmitting ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      modalState.type === 'create_account' ? 'Create' : modalState.type === 'sign_in' ? 'Sign In' : 'Confirm'
+                    )}
                   </button>
                 )}
               </div>

@@ -54,6 +54,7 @@ export function getHabitProgressValue(habit: Habit, dStr: string): number {
 }
 
 export function checkDayStatus(habit: Habit, dStr: string): 'completed' | 'partial' | 'none' {
+  if (habit.dates.includes(dStr)) return 'completed';
   const val = getHabitProgressValue(habit, dStr);
   if (val === 0) return 'none';
   const targetValue = getHabitTargetValue(habit);

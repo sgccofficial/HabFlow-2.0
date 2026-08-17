@@ -49,6 +49,19 @@ export function TimerPage() {
   const swAccumulatedRef = useRef<number>(0);
   const swIntervalRef = useRef<number | null>(null);
 
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   const selectedHabit = habits.find(h => h.id === activeHabitId) || null;
 
   // Initialize duration from habit goal
@@ -360,16 +373,55 @@ export function TimerPage() {
         <div className="bg-white dark:bg-gray-900 rounded-3xl p-6 sm:p-7 shadow-sm border border-gray-100 dark:border-gray-800 flex flex-col items-center w-full">
           
           {!isRunning && !swIsRunning ? (
-            <select 
-              value={activeHabitId || ''} 
-              onChange={e => setActiveHabitId(e.target.value || null)}
-              className="w-full mb-4 p-3 bg-gray-50 dark:bg-gray-800 border-none rounded-xl text-gray-900 dark:text-white font-medium focus:ring-2 focus:ring-indigo-500 text-sm"
-            >
-              <option value="">No habit selected</option>
-              {habits.map(h => (
-                <option key={h.id} value={h.id}>{h.name}</option>
-              ))}
-            </select>
+            <div className="relative w-full mb-4" ref={dropdownRef}>
+              <button
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                className="w-full p-3 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl text-gray-900 dark:text-white font-medium text-sm flex items-center justify-between transition-colors focus:ring-2 focus:ring-indigo-500 outline-none"
+              >
+                {selectedHabit ? (
+                  <div className="flex items-center gap-2">
+                    <span className="flex items-center justify-center w-5 h-5 rounded-md" style={{ color: selectedHabit.color }}>
+                      {getIcon(selectedHabit.icon)}
+                    </span>
+                    <span>{selectedHabit.name}</span>
+                  </div>
+                ) : (
+                  <span className="text-gray-500 dark:text-gray-400">Select a habit...</span>
+                )}
+                <svg className={cn("w-4 h-4 text-gray-500 transition-transform", isDropdownOpen && "rotate-180")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {isDropdownOpen && (
+                <div className="absolute z-50 w-full mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg max-h-60 overflow-y-auto animate-in fade-in slide-in-from-top-2">
+                  <button
+                    onClick={() => {
+                      setActiveHabitId(null);
+                      setIsDropdownOpen(false);
+                    }}
+                    className="w-full text-left p-3 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium transition-colors"
+                  >
+                    No habit selected
+                  </button>
+                  {habits.map(h => (
+                    <button
+                      key={h.id}
+                      onClick={() => {
+                        setActiveHabitId(h.id);
+                        setIsDropdownOpen(false);
+                      }}
+                      className="w-full text-left p-3 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-900 dark:text-white text-sm font-medium flex items-center gap-2 transition-colors border-t border-gray-100 dark:border-gray-700"
+                    >
+                      <span className="flex items-center justify-center w-5 h-5 rounded-md" style={{ color: h.color }}>
+                        {getIcon(h.icon)}
+                      </span>
+                      <span>{h.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           ) : selectedHabit ? (
             <div className="flex items-center gap-2 mb-4 bg-gray-50 dark:bg-gray-800 px-4 py-2 rounded-xl text-gray-900 dark:text-white font-medium text-sm">
               <span className="flex items-center justify-center w-6 h-6 rounded-md" style={{ color: selectedHabit.color }}>
