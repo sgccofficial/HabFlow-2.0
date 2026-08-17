@@ -162,7 +162,7 @@ export function ShareMilestoneModal({ habit, habitCompletionRate, overallStats, 
             <div className="relative z-10 flex flex-col items-center p-8 text-center w-full">
               {habit ? (
                 <>
-                  <h2 className="text-3xl font-bold text-white mb-6 drop-shadow-md">
+                  <h2 className="text-3xl font-medium text-white/90 mb-6 drop-shadow-sm mix-blend-overlay text-center px-4">
                     {habit.name}
                   </h2>
                   <div className="w-24 h-24 rounded-3xl flex items-center justify-center mb-8 shadow-xl bg-white/20 backdrop-blur-md text-white border border-white/20">
@@ -194,7 +194,7 @@ export function ShareMilestoneModal({ habit, habitCompletionRate, overallStats, 
                 </>
               ) : (
                 <>
-                  <h2 className="text-2xl font-bold text-white mb-6 drop-shadow-md text-center px-4">
+                  <h2 className="text-2xl font-medium text-white/90 mb-6 drop-shadow-sm mix-blend-overlay text-center px-4">
                     {shortName}'s Habits
                   </h2>
                   <div className="w-24 h-24 rounded-full flex items-center justify-center mb-6 shadow-xl bg-white/20 backdrop-blur-md text-white border border-white/20 overflow-hidden">
