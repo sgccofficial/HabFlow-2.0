@@ -17,6 +17,9 @@ export interface Habit {
   isFrozen?: boolean;
   frozenSince?: string;
   frozenDates?: string[]; // ISO format "YYYY-MM-DD"
+  legacyStreak?: number;
+  legacyStreakDate?: string;
+  legacyLongestStreak?: number;
 }
 
 export interface JournalEntry {

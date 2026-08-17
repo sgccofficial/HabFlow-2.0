@@ -472,7 +472,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         let dates = [...h.dates];
         if (next >= targetValue && !dates.includes(date)) {
           dates.push(date);
-        } else if (next === 0 && dates.includes(date)) {
+        } else if (next < targetValue && dates.includes(date)) {
           dates = dates.filter(d => d !== date);
         }
         

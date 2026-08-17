@@ -3,7 +3,7 @@ import { Habit } from '../types';
 import { useAppContext } from '../store/AppContext';
 import { X, Trash2 } from 'lucide-react';
 import { getIcon } from './HabitCard';
-import { cn } from '../lib/utils';
+import { cn, calculateStreak, calculateLongestStreak, formatDate } from '../lib/utils';
 
 const COLORS = [
   '#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16', '#22c55e', '#10b981',
@@ -65,6 +65,13 @@ export function EditHabitModal({ habit, onClose }: EditModalProps) {
       fallbackGoalValue = finalDailyCompletions;
     }
     
+    // We compute the streak up to yesterday, so that past limit changes do not affect past days
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = formatDate(yesterday);
+    const streakUpToYesterday = calculateStreak(habit, yesterdayStr);
+    const longestStreakUpToYesterday = calculateLongestStreak(habit, yesterdayStr);
+
     updateHabit(habit.id, { 
       name: name.trim(), 
       category: habit.category || '',
@@ -76,12 +83,16 @@ export function EditHabitModal({ habit, onClose }: EditModalProps) {
       durationUnit: fallbackDurationUnit,
       targetDays: finalTargetDays,
       dailyCompletions: finalDailyCompletions,
-      durationGoal: finalDurationGoal
+      durationGoal: finalDurationGoal,
+      legacyStreak: streakUpToYesterday,
+      legacyStreakDate: yesterdayStr,
+      legacyLongestStreak: longestStreakUpToYesterday
     });
     onClose();
   };
 
-  const handleDelete = () => {
+  const handleDelete = (e: React.MouseEvent) => {
+    e.preventDefault();
     if (showDeleteConfirm) {
       deleteHabit(habit.id);
       onClose();
@@ -352,6 +363,7 @@ export function EditHabitModal({ habit, onClose }: EditModalProps) {
 
         <div className="p-4 border-t border-gray-100 dark:border-gray-800 flex gap-3">
           <button
+            type="button"
             onClick={handleDelete}
             className={cn(
               "p-3 rounded-xl transition-colors font-medium flex items-center justify-center min-w-[3rem]",

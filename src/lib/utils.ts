@@ -55,6 +55,13 @@ export function getHabitProgressValue(habit: Habit, dStr: string): number {
 
 export function checkDayStatus(habit: Habit, dStr: string): 'completed' | 'partial' | 'none' {
   if (habit.dates.includes(dStr)) return 'completed';
+  
+  const todayStr = formatDate(new Date());
+  if (dStr !== todayStr) {
+    const val = habit.progress?.[dStr] || 0;
+    return val > 0 ? 'partial' : 'none';
+  }
+
   const val = getHabitProgressValue(habit, dStr);
   if (val === 0) return 'none';
   const targetValue = getHabitTargetValue(habit);
@@ -62,17 +69,23 @@ export function checkDayStatus(habit: Habit, dStr: string): 'completed' | 'parti
   return val >= targetValue ? 'completed' : 'partial';
 }
 
-export function calculateStreak(habit: Habit): number {
-  const { created, targetDays: savedTargetDays } = habit;
+export function calculateStreak(habit: Habit, endDateStr?: string): number {
+  const { created, targetDays: savedTargetDays, legacyStreak, legacyStreakDate } = habit;
   const targetDays = savedTargetDays || [0, 1, 2, 3, 4, 5, 6];
   if (targetDays.length === 0) return 0;
 
   let streak = 0;
-  let current = new Date();
-  const todayStr = formatDate(current);
+  let current = endDateStr ? new Date(endDateStr + 'T12:00:00') : new Date();
+  const todayStr = formatDate(new Date());
 
   while (true) {
     const dStr = formatDate(current);
+
+    if (!endDateStr && legacyStreakDate && dStr === legacyStreakDate) {
+      streak += (legacyStreak || 0);
+      break;
+    }
+
     if (dStr < created) break;
 
     const isFrozen = isHabitDayFrozen(habit, dStr, todayStr);
@@ -98,23 +111,45 @@ export function calculateStreak(habit: Habit): number {
   return streak;
 }
 
-export function calculateLongestStreak(habit: Habit): number {
-  const { created, targetDays: savedTargetDays } = habit;
+export function calculateLongestStreak(habit: Habit, endDateStr?: string): number {
+  const { created, targetDays: savedTargetDays, legacyLongestStreak } = habit;
   const targetDays = savedTargetDays || [0, 1, 2, 3, 4, 5, 6];
   if (targetDays.length === 0) return 0;
 
-  let longestStreak = 0;
+  let longestStreak = legacyLongestStreak || 0;
   let tempStreak = 0;
-  const today = new Date();
-  const todayStr = formatDate(today);
   
-  const createdDate = new Date(created + 'T12:00:00');
-  const daysSinceCreation = Math.max(1, Math.floor((today.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+  // If we have an end date, calculate only up to that date.
+  // Otherwise, calculate up to today.
+  const limitDate = endDateStr ? new Date(endDateStr + 'T12:00:00') : new Date();
+  const todayStr = formatDate(new Date());
   
-  for (let i = 0; i < daysSinceCreation; i++) {
-    const d = new Date(createdDate);
+  // Start from either the legacy streak date, or the creation date
+  // Since we don't know the exact history before legacyLongestStreak was saved,
+  // we just start checking from the legacyStreakDate onwards to continue the tempStreak?
+  // Actually, wait, if legacyLongestStreak is present, we shouldn't re-calculate past days before legacyStreakDate
+  // because we don't have the history of limit changes!
+  // BUT we don't know the tempStreak at legacyStreakDate! We only stored the *longest* streak!
+  // Wait, legacyStreak is the CURRENT streak at legacyStreakDate! So we DO know tempStreak at legacyStreakDate!
+  
+  const startDate = (habit.legacyStreakDate && !endDateStr) 
+    ? new Date(habit.legacyStreakDate + 'T12:00:00') 
+    : new Date(created + 'T12:00:00');
+    
+  if (habit.legacyStreakDate && !endDateStr) {
+    tempStreak = habit.legacyStreak || 0;
+    // We already counted legacyStreakDate in the legacyStreak, so start from the day AFTER legacyStreakDate
+    startDate.setDate(startDate.getDate() + 1);
+  }
+
+  const daysToCalculate = Math.max(0, Math.floor((limitDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+  
+  for (let i = 0; i < daysToCalculate; i++) {
+    const d = new Date(startDate);
     d.setDate(d.getDate() + i);
     const dStr = formatDate(d);
+    
+    if (dStr > formatDate(limitDate)) break;
     
     const isFrozen = isHabitDayFrozen(habit, dStr, todayStr);
     

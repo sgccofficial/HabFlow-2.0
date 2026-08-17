@@ -451,7 +451,7 @@ export function HabitsPage() {
           <button 
             onClick={() => {
               if (window.confirm('Are you sure you want to delete all streak data? This will clear calendar and analytics data but keep your habits.')) {
-                const newHabits = habits.map(h => ({ ...h, dates: [], progress: {}, frozenDates: [], frozenSince: undefined, isFrozen: false }));
+                const newHabits = habits.map(h => ({ ...h, dates: [], progress: {}, frozenDates: [], frozenSince: undefined, isFrozen: false, legacyStreak: undefined, legacyStreakDate: undefined, legacyLongestStreak: undefined }));
                 reorderHabits(newHabits);
               }
             }}
