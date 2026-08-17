@@ -424,7 +424,7 @@ export function AnalyticsPage() {
               key={idx} 
               title={tooltip}
               className={cn(
-                "aspect-square rounded-xl sm:rounded-2xl transition-colors cursor-default",
+                "aspect-square rounded-xl transition-colors cursor-default",
                 colorClass
               )} 
             />
