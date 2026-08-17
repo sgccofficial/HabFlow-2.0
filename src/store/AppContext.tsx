@@ -24,6 +24,7 @@ interface AppContextType {
   addJournalEntry: (entry: Omit<JournalEntry, 'id'>) => void;
   updateJournalEntry: (id: string, content: string) => void;
   deleteJournalEntry: (id: string) => void;
+  clearAllData: () => void;
   darkMode: boolean;
   toggleDarkMode: () => void;
   setServerTimer: (durationSecs: number, title: string) => void;
@@ -498,12 +499,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setJournal(journal.filter(j => j.id !== id));
   };
 
+  const clearAllData = () => {
+    setHabits(prev => prev.map(h => ({
+      ...h,
+      dates: [],
+      progress: {},
+      frozenDates: [],
+      frozenSince: undefined,
+      isFrozen: false,
+      legacyStreak: undefined,
+      legacyStreakDate: undefined,
+      legacyLongestStreak: undefined
+    })));
+    setJournal([]);
+    setJournalSettings({});
+  };
+
   return (
     <AppContext.Provider value={{
       habits, journal, journalSettings, appSettings, currentPage, setCurrentPage, activeHabitId, setActiveHabitId, user, setUser: setUserAndBackup,
       updateJournalSettings, updateAppSettings,
       addHabit, updateHabit, deleteHabit, reorderHabits, toggleHabitDate, updateHabitProgress,
-      addJournalEntry, updateJournalEntry, deleteJournalEntry,
+      addJournalEntry, updateJournalEntry, deleteJournalEntry, clearAllData,
       darkMode, toggleDarkMode, setServerTimer, clearServerTimer
     }}>
       {children}

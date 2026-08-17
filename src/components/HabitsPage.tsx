@@ -223,11 +223,12 @@ function DroppableCategory({ id, children, category }: { id: string, children: R
 }
 
 export function HabitsPage() {
-  const { habits, addHabit, reorderHabits, updateHabit } = useAppContext();
+  const { habits, addHabit, reorderHabits, updateHabit, clearAllData } = useAppContext();
   const [newHabitName, setNewHabitName] = useState('');
   
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
   const [calendarHabit, setCalendarHabit] = useState<Habit | null>(null);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
   
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -449,12 +450,7 @@ export function HabitsPage() {
             <p className="text-gray-700 dark:text-gray-300 mt-1 font-medium">Build better habits, one step at a time.</p>
           </div>
           <button 
-            onClick={() => {
-              if (window.confirm('Are you sure you want to delete all streak data? This will clear calendar and analytics data but keep your habits.')) {
-                const newHabits = habits.map(h => ({ ...h, dates: [], progress: {}, frozenDates: [], frozenSince: undefined, isFrozen: false, legacyStreak: undefined, legacyStreakDate: undefined, legacyLongestStreak: undefined }));
-                reorderHabits(newHabits);
-              }
-            }}
+            onClick={() => setShowResetConfirm(true)}
             title="Reset All Data"
             className="shrink-0 p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors"
           >
@@ -921,6 +917,38 @@ export function HabitsPage() {
           </div>
         </div>
       )}
+
+      {showResetConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in" onClick={() => setShowResetConfirm(false)}>
+          <div 
+            className="bg-white dark:bg-gray-900 w-full max-w-sm rounded-3xl p-6 shadow-2xl relative"
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Reset All Data?</h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-6 text-sm">
+              This will permanently delete your streak counts, calendar checks, analytics, and all journal entries. Only your habits and their settings will be retained. This action cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  clearAllData();
+                  setShowResetConfirm(false);
+                }}
+                className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white font-medium rounded-xl transition-colors shadow-sm"
+              >
+                Delete Data
+              </button>
+              <button
+                onClick={() => setShowResetConfirm(false)}
+                className="flex-1 py-3 text-gray-700 dark:text-gray-300 font-medium rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors border border-gray-200 dark:border-gray-700"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
