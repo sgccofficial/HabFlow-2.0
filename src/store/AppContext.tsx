@@ -40,8 +40,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const [dataLoadedForUser, setDataLoadedForUser] = useState<string | null>(null);
   const lastSyncedState = useRef({ habits: '', journal: '', journalSettings: '', appSettings: '' });
-  const pendingUpdatesRef = useRef<any>({});
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const getStorageKey = (key: string) => {
     return user ? `${key}_${user.id}` : key;
@@ -92,25 +90,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           
           const { onSnapshot } = await import('firebase/firestore');
           let initialLoad = true;
-          unsubscribe = onSnapshot(doc(db, 'users', user.id), (userDoc) => {
+          unsubscribe = onSnapshot(doc(db, 'users', user.id), { includeMetadataChanges: true }, (userDoc) => {
+            if (userDoc.metadata.hasPendingWrites) {
+               return; // Skip remote echoes to prevent reverting local optimistic state on rapid clicks
+            }
+
             if (userDoc.exists()) {
               const data = userDoc.data();
-              if (data.habits && !pendingUpdatesRef.current.habits) {
+              if (data.habits) {
                 const str = JSON.stringify(data.habits);
                 lastSyncedState.current.habits = str;
                 setHabits(prev => JSON.stringify(prev) !== str ? data.habits : prev);
               }
-              if (data.journal && !pendingUpdatesRef.current.journal) {
+              if (data.journal) {
                 const str = JSON.stringify(data.journal);
                 lastSyncedState.current.journal = str;
                 setJournal(prev => JSON.stringify(prev) !== str ? data.journal : prev);
               }
-              if (data.journalSettings && !pendingUpdatesRef.current.journalSettings) {
+              if (data.journalSettings) {
                 const str = JSON.stringify(data.journalSettings);
                 lastSyncedState.current.journalSettings = str;
                 setJournalSettings(prev => JSON.stringify(prev) !== str ? data.journalSettings : prev);
               }
-              if (data.appSettings && !pendingUpdatesRef.current.appSettings) {
+              if (data.appSettings) {
                 const str = JSON.stringify(data.appSettings);
                 lastSyncedState.current.appSettings = str;
                 setAppSettings(prev => JSON.stringify(prev) !== str ? data.appSettings : prev);
@@ -147,31 +149,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, [user]);
 
-  const saveToFirebase = (dataToUpdate: any) => {
+  const saveToFirebase = async (dataToUpdate: any) => {
     if (user && dataLoadedForUser === user.id) {
-      pendingUpdatesRef.current = { ...pendingUpdatesRef.current, ...dataToUpdate };
-      
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
+      try {
+        const { db } = await import('../lib/firebase');
+        const { doc, setDoc } = await import('firebase/firestore');
+        await setDoc(doc(db, 'users', user.id), dataToUpdate, { merge: true });
+      } catch (error) {
+        console.error("Failed to save to Firebase", error);
       }
-      
-      saveTimeoutRef.current = setTimeout(async () => {
-        const updates = { ...pendingUpdatesRef.current };
-        try {
-          const { db } = await import('../lib/firebase');
-          const { doc, setDoc } = await import('firebase/firestore');
-          await setDoc(doc(db, 'users', user.id), updates, { merge: true });
-        } catch (error) {
-          console.error("Failed to save to Firebase", error);
-        } finally {
-          // Clear keys that were successfully queued (if they haven't been overwritten by newer rapid clicks)
-          Object.keys(updates).forEach(key => {
-            if (pendingUpdatesRef.current[key] === updates[key]) {
-              delete pendingUpdatesRef.current[key];
-            }
-          });
-        }
-      }, 500);
     }
   };
 
