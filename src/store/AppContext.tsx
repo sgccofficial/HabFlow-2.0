@@ -39,7 +39,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   });
 
   const [dataLoadedForUser, setDataLoadedForUser] = useState<string | null>(null);
-  const isRemoteUpdate = useRef(false);
+  const lastSyncedState = useRef({ habits: '', journal: '', journalSettings: '', appSettings: '' });
+  const pendingUpdatesRef = useRef<any>({});
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const getStorageKey = (key: string) => {
     return user ? `${key}_${user.id}` : key;
@@ -93,12 +95,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           unsubscribe = onSnapshot(doc(db, 'users', user.id), (userDoc) => {
             if (userDoc.exists()) {
               const data = userDoc.data();
-              isRemoteUpdate.current = true;
-              if (data.habits) setHabits(prev => JSON.stringify(prev) !== JSON.stringify(data.habits) ? data.habits : prev);
-              if (data.journal) setJournal(prev => JSON.stringify(prev) !== JSON.stringify(data.journal) ? data.journal : prev);
-              if (data.journalSettings) setJournalSettings(prev => JSON.stringify(prev) !== JSON.stringify(data.journalSettings) ? data.journalSettings : prev);
-              if (data.appSettings) setAppSettings(prev => JSON.stringify(prev) !== JSON.stringify(data.appSettings) ? data.appSettings : prev);
-              setTimeout(() => { isRemoteUpdate.current = false; }, 500);
+              if (data.habits && !pendingUpdatesRef.current.habits) {
+                const str = JSON.stringify(data.habits);
+                lastSyncedState.current.habits = str;
+                setHabits(prev => JSON.stringify(prev) !== str ? data.habits : prev);
+              }
+              if (data.journal && !pendingUpdatesRef.current.journal) {
+                const str = JSON.stringify(data.journal);
+                lastSyncedState.current.journal = str;
+                setJournal(prev => JSON.stringify(prev) !== str ? data.journal : prev);
+              }
+              if (data.journalSettings && !pendingUpdatesRef.current.journalSettings) {
+                const str = JSON.stringify(data.journalSettings);
+                lastSyncedState.current.journalSettings = str;
+                setJournalSettings(prev => JSON.stringify(prev) !== str ? data.journalSettings : prev);
+              }
+              if (data.appSettings && !pendingUpdatesRef.current.appSettings) {
+                const str = JSON.stringify(data.appSettings);
+                lastSyncedState.current.appSettings = str;
+                setAppSettings(prev => JSON.stringify(prev) !== str ? data.appSettings : prev);
+              }
             } else if (initialLoad) {
               // Migrate local to remote if there is anything
               const h = localStorage.getItem(`habitflow_habits_${user.id}`);
@@ -131,15 +147,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, [user]);
 
-  const saveToFirebase = async (dataToUpdate: any) => {
+  const saveToFirebase = (dataToUpdate: any) => {
     if (user && dataLoadedForUser === user.id) {
-      try {
-        const { db } = await import('../lib/firebase');
-        const { doc, setDoc } = await import('firebase/firestore');
-        await setDoc(doc(db, 'users', user.id), dataToUpdate, { merge: true });
-      } catch (error) {
-        console.error("Failed to save to Firebase", error);
+      pendingUpdatesRef.current = { ...pendingUpdatesRef.current, ...dataToUpdate };
+      
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
       }
+      
+      saveTimeoutRef.current = setTimeout(async () => {
+        const updates = { ...pendingUpdatesRef.current };
+        try {
+          const { db } = await import('../lib/firebase');
+          const { doc, setDoc } = await import('firebase/firestore');
+          await setDoc(doc(db, 'users', user.id), updates, { merge: true });
+        } catch (error) {
+          console.error("Failed to save to Firebase", error);
+        } finally {
+          // Clear keys that were successfully queued (if they haven't been overwritten by newer rapid clicks)
+          Object.keys(updates).forEach(key => {
+            if (pendingUpdatesRef.current[key] === updates[key]) {
+              delete pendingUpdatesRef.current[key];
+            }
+          });
+        }
+      }, 500);
     }
   };
 
@@ -188,7 +220,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (dataLoadedForUser === (user ? user.id : null)) {
       localStorage.setItem(getStorageKey('habitflow_habits'), JSON.stringify(habits));
-      if (user && !isRemoteUpdate.current) saveToFirebase({ habits });
+      if (user) {
+        const str = JSON.stringify(habits);
+        if (str !== lastSyncedState.current.habits) {
+          saveToFirebase({ habits });
+        }
+      }
       syncNotificationSettings(habits);
     }
   }, [habits, user, dataLoadedForUser]);
@@ -196,21 +233,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (dataLoadedForUser === (user ? user.id : null)) {
       localStorage.setItem(getStorageKey('habitflow_journal'), JSON.stringify(journal));
-      if (user && !isRemoteUpdate.current) saveToFirebase({ journal });
+      if (user) {
+        const str = JSON.stringify(journal);
+        if (str !== lastSyncedState.current.journal) {
+          saveToFirebase({ journal });
+        }
+      }
     }
   }, [journal, user, dataLoadedForUser]);
 
   useEffect(() => {
     if (dataLoadedForUser === (user ? user.id : null)) {
       localStorage.setItem(getStorageKey('habitflow_journal_settings'), JSON.stringify(journalSettings));
-      if (user && !isRemoteUpdate.current) saveToFirebase({ journalSettings });
+      if (user) {
+        const str = JSON.stringify(journalSettings);
+        if (str !== lastSyncedState.current.journalSettings) {
+          saveToFirebase({ journalSettings });
+        }
+      }
     }
   }, [journalSettings, user, dataLoadedForUser]);
 
   useEffect(() => {
     if (dataLoadedForUser === (user ? user.id : null)) {
       localStorage.setItem(getStorageKey('habitflow_app_settings'), JSON.stringify(appSettings));
-      if (user && !isRemoteUpdate.current) saveToFirebase({ appSettings });
+      if (user) {
+        const str = JSON.stringify(appSettings);
+        if (str !== lastSyncedState.current.appSettings) {
+          saveToFirebase({ appSettings });
+        }
+      }
     }
   }, [appSettings, user, dataLoadedForUser]);
 
