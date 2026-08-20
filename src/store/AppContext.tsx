@@ -90,11 +90,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           
           const { onSnapshot } = await import('firebase/firestore');
           let initialLoad = true;
-          unsubscribe = onSnapshot(doc(db, 'users', user.id), { includeMetadataChanges: true }, (userDoc) => {
-            if (userDoc.metadata.hasPendingWrites) {
-               return; // Skip remote echoes to prevent reverting local optimistic state on rapid clicks
-            }
-
+          unsubscribe = onSnapshot(doc(db, 'users', user.id), (userDoc) => {
             if (userDoc.exists()) {
               const data = userDoc.data();
               if (data.habits) {

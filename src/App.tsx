@@ -539,6 +539,11 @@ function AppContent() {
                       <Trash2 className="w-4 h-4" /> Delete Account
                     </button>
                   </div>
+                  <div className="p-2 border-t border-gray-100 dark:border-gray-700">
+                    <p className="text-[10px] text-center text-gray-400 dark:text-gray-500 font-medium tracking-wider">
+                      ©SGCC OFFICIAL
+                    </p>
+                  </div>
                 </div>
               )}
             </div>
