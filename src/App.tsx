@@ -540,7 +540,7 @@ function AppContent() {
                     </button>
                   </div>
                   <div className="p-2 border-t border-gray-100 dark:border-gray-700">
-                    <p className="text-[10px] text-center text-gray-400 dark:text-gray-500 font-medium tracking-wider">
+                    <p className="text-[10px] text-left px-3 text-gray-400 dark:text-gray-500 font-medium tracking-wider">
                       ©SGCC OFFICIAL
                     </p>
                   </div>
