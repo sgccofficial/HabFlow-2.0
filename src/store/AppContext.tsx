@@ -90,28 +90,38 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           
           const { onSnapshot } = await import('firebase/firestore');
           let initialLoad = true;
-          unsubscribe = onSnapshot(doc(db, 'users', user.id), (userDoc) => {
+          unsubscribe = onSnapshot(doc(db, 'users', user.id), { includeMetadataChanges: true }, (userDoc) => {
+            const hasPending = userDoc.metadata.hasPendingWrites;
+
             if (userDoc.exists()) {
               const data = userDoc.data();
               if (data.habits) {
                 const str = JSON.stringify(data.habits);
                 lastSyncedState.current.habits = str;
-                setHabits(prev => JSON.stringify(prev) !== str ? data.habits : prev);
+                if (!hasPending || initialLoad) {
+                  setHabits(prev => JSON.stringify(prev) !== str ? data.habits : prev);
+                }
               }
               if (data.journal) {
                 const str = JSON.stringify(data.journal);
                 lastSyncedState.current.journal = str;
-                setJournal(prev => JSON.stringify(prev) !== str ? data.journal : prev);
+                if (!hasPending || initialLoad) {
+                  setJournal(prev => JSON.stringify(prev) !== str ? data.journal : prev);
+                }
               }
               if (data.journalSettings) {
                 const str = JSON.stringify(data.journalSettings);
                 lastSyncedState.current.journalSettings = str;
-                setJournalSettings(prev => JSON.stringify(prev) !== str ? data.journalSettings : prev);
+                if (!hasPending || initialLoad) {
+                  setJournalSettings(prev => JSON.stringify(prev) !== str ? data.journalSettings : prev);
+                }
               }
               if (data.appSettings) {
                 const str = JSON.stringify(data.appSettings);
                 lastSyncedState.current.appSettings = str;
-                setAppSettings(prev => JSON.stringify(prev) !== str ? data.appSettings : prev);
+                if (!hasPending || initialLoad) {
+                  setAppSettings(prev => JSON.stringify(prev) !== str ? data.appSettings : prev);
+                }
               }
             } else if (initialLoad) {
               // Migrate local to remote if there is anything
@@ -150,7 +160,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       try {
         const { db } = await import('../lib/firebase');
         const { doc, setDoc } = await import('firebase/firestore');
-        await setDoc(doc(db, 'users', user.id), dataToUpdate, { merge: true });
+        // Firestore doesn't accept undefined values, which can occur from local state logic (e.g. frozenSince: undefined)
+        // Stripping them out prevents setDoc from throwing an error and aborting the save.
+        const cleanData = JSON.parse(JSON.stringify(dataToUpdate));
+        await setDoc(doc(db, 'users', user.id), cleanData, { merge: true });
       } catch (error) {
         console.error("Failed to save to Firebase", error);
       }
