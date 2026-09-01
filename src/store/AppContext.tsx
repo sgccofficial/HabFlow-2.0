@@ -40,6 +40,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const [dataLoadedForUser, setDataLoadedForUser] = useState<string | null>(null);
   const lastSyncedState = useRef({ habits: '', journal: '', journalSettings: '', appSettings: '' });
+  const pendingWritesCount = useRef(0);
 
   const getStorageKey = (key: string) => {
     return user ? `${key}_${user.id}` : key;
@@ -92,34 +93,35 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           let initialLoad = true;
           unsubscribe = onSnapshot(doc(db, 'users', user.id), { includeMetadataChanges: true }, (userDoc) => {
             const hasPending = userDoc.metadata.hasPendingWrites;
+            const isLocalWriting = pendingWritesCount.current > 0;
 
             if (userDoc.exists()) {
               const data = userDoc.data();
               if (data.habits) {
                 const str = JSON.stringify(data.habits);
                 lastSyncedState.current.habits = str;
-                if (!hasPending || initialLoad) {
+                if ((!hasPending && !isLocalWriting) || initialLoad) {
                   setHabits(prev => JSON.stringify(prev) !== str ? data.habits : prev);
                 }
               }
               if (data.journal) {
                 const str = JSON.stringify(data.journal);
                 lastSyncedState.current.journal = str;
-                if (!hasPending || initialLoad) {
+                if ((!hasPending && !isLocalWriting) || initialLoad) {
                   setJournal(prev => JSON.stringify(prev) !== str ? data.journal : prev);
                 }
               }
               if (data.journalSettings) {
                 const str = JSON.stringify(data.journalSettings);
                 lastSyncedState.current.journalSettings = str;
-                if (!hasPending || initialLoad) {
+                if ((!hasPending && !isLocalWriting) || initialLoad) {
                   setJournalSettings(prev => JSON.stringify(prev) !== str ? data.journalSettings : prev);
                 }
               }
               if (data.appSettings) {
                 const str = JSON.stringify(data.appSettings);
                 lastSyncedState.current.appSettings = str;
-                if (!hasPending || initialLoad) {
+                if ((!hasPending && !isLocalWriting) || initialLoad) {
                   setAppSettings(prev => JSON.stringify(prev) !== str ? data.appSettings : prev);
                 }
               }
@@ -157,6 +159,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const saveToFirebase = async (dataToUpdate: any) => {
     if (user && dataLoadedForUser === user.id) {
+      pendingWritesCount.current += 1;
       try {
         const { db } = await import('../lib/firebase');
         const { doc, setDoc } = await import('firebase/firestore');
@@ -166,6 +169,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         await setDoc(doc(db, 'users', user.id), cleanData, { merge: true });
       } catch (error) {
         console.error("Failed to save to Firebase", error);
+      } finally {
+        setTimeout(() => {
+          pendingWritesCount.current = Math.max(0, pendingWritesCount.current - 1);
+        }, 1500); // Wait out the async gap and potential snapshot echoes
       }
     }
   };
@@ -218,6 +225,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (user) {
         const str = JSON.stringify(habits);
         if (str !== lastSyncedState.current.habits) {
+          lastSyncedState.current.habits = str;
           saveToFirebase({ habits });
         }
       }
@@ -231,6 +239,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (user) {
         const str = JSON.stringify(journal);
         if (str !== lastSyncedState.current.journal) {
+          lastSyncedState.current.journal = str;
           saveToFirebase({ journal });
         }
       }
@@ -243,6 +252,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (user) {
         const str = JSON.stringify(journalSettings);
         if (str !== lastSyncedState.current.journalSettings) {
+          lastSyncedState.current.journalSettings = str;
           saveToFirebase({ journalSettings });
         }
       }
@@ -255,6 +265,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       if (user) {
         const str = JSON.stringify(appSettings);
         if (str !== lastSyncedState.current.appSettings) {
+          lastSyncedState.current.appSettings = str;
           saveToFirebase({ appSettings });
         }
       }
