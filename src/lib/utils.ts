@@ -86,7 +86,7 @@ export function calculateStreak(habit: Habit, endDateStr?: string): number {
       break;
     }
 
-    if (dStr < created) break;
+    if (!created || dStr < created) break;
 
     const isFrozen = isHabitDayFrozen(habit, dStr, todayStr);
     const dayOfWeek = current.getDay();
