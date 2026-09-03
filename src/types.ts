@@ -15,7 +15,7 @@ export interface Habit {
   durationGoal?: number; // in seconds
   category?: string;
   isFrozen?: boolean;
-  frozenSince?: string;
+  frozenSince?: string | null;
   frozenDates?: string[]; // ISO format "YYYY-MM-DD"
   legacyStreak?: number;
   legacyStreakDate?: string;
