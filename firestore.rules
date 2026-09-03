@@ -8,9 +8,7 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read: if request.auth != null;
-      // User can modify their own doc.
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow read, write: if true;
     }
     match /subscriptions/{subscriptionId} {
       allow read, write: if true;
