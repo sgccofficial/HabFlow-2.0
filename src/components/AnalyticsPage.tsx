@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../store/AppContext';
 import { format, subDays, eachDayOfInterval, parseISO, getDay, isSameDay, startOfWeek, endOfWeek, isAfter, isBefore, isToday } from 'date-fns';
-import { calculateStreak, calculateLongestStreak, cn, isHabitDayFrozen, formatDate, getHabitTargetValue, getHabitProgressValue, checkDayStatus } from '../lib/utils';
+import { calculateStreak, calculateLongestStreak, cn, isHabitDayFrozen, formatDate, getHabitTargetValue, getHabitProgressValue, checkDayStatus, calculateHabitConsistency, calculateOverallStats } from '../lib/utils';
 import { TrendingUp, Award, CalendarDays, Activity, Share2, CheckCircle2, ChevronUp, ChevronDown } from 'lucide-react';
 import { ShareMilestoneModal } from './ShareMilestoneModal';
 import { getIcon } from './HabitCard';
@@ -151,30 +151,9 @@ export function AnalyticsPage() {
 
   const habitAnalytics = useMemo(() => {
     if (!selectedHabit) return null;
-    let currentStreak = calculateStreak(selectedHabit);
-    let longestStreak = calculateLongestStreak(selectedHabit);
-    
-    const createdDate = parseISO(selectedHabit.created);
-    const daysSinceCreation = Math.max(1, Math.floor((today.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24)) + 1);
-    
-    let validDaysSinceCreation = 0;
-    let validCompletions = 0;
-    const todayStr = formatDate(today);
-    
-    for (let i = 0; i < daysSinceCreation; i++) {
-      const d = new Date(createdDate);
-      d.setDate(d.getDate() + i);
-      const dStr = format(d, 'yyyy-MM-dd');
-      
-      const isFrozen = isHabitDayFrozen(selectedHabit, dStr, todayStr);
-      if (!isFrozen) {
-        const tDays = selectedHabit.targetDays || [0, 1, 2, 3, 4, 5, 6];
-        if (tDays.includes(d.getDay())) validDaysSinceCreation++;
-        if (checkDayStatus(selectedHabit, dStr) === 'completed') validCompletions++;
-      }
-    }
-    
-    const completionRate = validDaysSinceCreation > 0 ? Math.round((validCompletions / validDaysSinceCreation) * 100) : 0;
+    const currentStreak = calculateStreak(selectedHabit);
+    const longestStreak = calculateLongestStreak(selectedHabit);
+    const { consistencyRate } = calculateHabitConsistency(selectedHabit, today);
 
     // Activity over last 30 days
     const activityOverTime = last30Days.map(date => {
@@ -185,60 +164,11 @@ export function AnalyticsPage() {
       };
     });
 
-    return { longestStreak, currentStreak, completionRate, activityOverTime };
+    return { longestStreak, currentStreak, completionRate: consistencyRate, activityOverTime };
   }, [selectedHabit, last30Days, today]);
 
   const overallStats = useMemo(() => {
-    const activeHabitsList = habits.filter(h => !h.isFrozen);
-    let totalCompletions = 0;
-    let totalPossible = 0;
-    let allTimeCompletions = 0;
-    const todayStr = formatDate(today);
-    
-    habits.forEach(h => {
-      let validComps = 0;
-      const tDays = h.targetDays || [0, 1, 2, 3, 4, 5, 6];
-      let todayIdx = today.getTime();
-      let createTime = new Date(h.created + 'T12:00:00').getTime();
-      let days = Math.floor((todayIdx - createTime) / (1000*60*60*24)) + 1;
-      for(let i=0; i<days; i++) {
-        let d = new Date(h.created + 'T12:00:00'); d.setDate(d.getDate() + i);
-        let ds = formatDate(d);
-        if (!isHabitDayFrozen(h, ds, todayStr) && checkDayStatus(h, ds) === 'completed') {
-           validComps++;
-        }
-      }
-      allTimeCompletions += validComps;
-    });
-    
-    activeHabitsList.forEach(h => {
-      const createdDate = parseISO(h.created);
-      const daysSinceCreation = Math.max(1, Math.floor((today.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24)) + 1);
-      
-      let validDays = 0;
-      let validCompletions = 0;
-      for (let i = 0; i < daysSinceCreation; i++) {
-        const d = new Date(createdDate);
-        d.setDate(d.getDate() + i);
-        const dStr = format(d, 'yyyy-MM-dd');
-        if (!isHabitDayFrozen(h, dStr, todayStr)) {
-          const tDays = h.targetDays || [0, 1, 2, 3, 4, 5, 6];
-          if (tDays.includes(d.getDay())) validDays++;
-          if (checkDayStatus(h, dStr) === 'completed') validCompletions++;
-        }
-      }
-      
-      totalCompletions += validCompletions;
-      totalPossible += validDays;
-    });
-    
-    const consistencyRate = totalPossible > 0 ? Math.round((totalCompletions / totalPossible) * 100) : 0;
-    return {
-      totalCompletions,
-      allTimeCompletions,
-      activeHabits: activeHabitsList.length,
-      consistencyRate
-    };
+    return calculateOverallStats(habits, today);
   }, [habits, today]);
 
   const todayStr = formatDate(today);

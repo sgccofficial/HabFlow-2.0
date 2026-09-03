@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { X, Share2, Download, User } from 'lucide-react';
 import { Habit } from '../types';
-import { calculateStreak, calculateLongestStreak, cn } from '../lib/utils';
+import { calculateStreak, calculateLongestStreak, cn, calculateHabitConsistency } from '../lib/utils';
 import { toBlob } from 'html-to-image';
 import * as LucideIcons from 'lucide-react';
 import { BACKGROUND_TEXTURES } from '../lib/constants';
@@ -39,8 +39,7 @@ export function ShareMilestoneModal({ habit, habitCompletionRate, overallStats, 
     if (habitCompletionRate !== undefined) {
       completionRate = habitCompletionRate;
     } else {
-      const daysSinceCreation = Math.max(1, Math.floor((new Date().getTime() - new Date(habit.created).getTime()) / (1000 * 3600 * 24)) + 1);
-      completionRate = Math.min(100, Math.round((habit.dates.length / daysSinceCreation) * 100));
+      completionRate = calculateHabitConsistency(habit).consistencyRate;
     }
     habitColor = habit.color;
   } else if (overallStats) {

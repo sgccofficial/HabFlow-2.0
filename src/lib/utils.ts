@@ -25,9 +25,16 @@ function getStartOfWeek(date: Date): Date {
 
 export function isHabitDayFrozen(habit: Habit, dStr: string, todayStr: string): boolean {
   if (habit.frozenDates?.includes(dStr)) return true;
-  if (habit.isFrozen && habit.frozenSince) {
-    if (dStr >= habit.frozenSince && dStr <= todayStr) {
-      return true;
+  if (habit.isFrozen) {
+    if (habit.frozenSince) {
+      if (dStr >= habit.frozenSince && dStr <= todayStr) {
+        return true;
+      }
+    } else {
+      const dates = habit.dates || [];
+      if (dates.length === 0) return true;
+      const maxDate = dates.reduce((a, b) => a > b ? a : b);
+      if (dStr > maxDate) return true;
     }
   }
   return false;
@@ -168,3 +175,129 @@ export function calculateLongestStreak(habit: Habit, endDateStr?: string): numbe
   }
   return longestStreak;
 }
+
+export interface HabitConsistencyResult {
+  consistencyRate: number;
+  scheduledDays: number;
+  completedDays: number;
+}
+
+/**
+ * Calculates the consistency percentage for an individual habit.
+ * - Evaluates scheduled target days from creation to today.
+ * - Properly excludes frozen days/periods.
+ * - Today is considered "in progress" and does not penalize the user if not yet completed.
+ * - Bonus completions on non-target days count towards consistency without exceeding 100%.
+ */
+export function calculateHabitConsistency(habit: Habit, asOfDate: Date = new Date()): HabitConsistencyResult {
+  const todayStr = formatDate(asOfDate);
+  const createdStr = habit.created || todayStr;
+  if (createdStr > todayStr) {
+    return { consistencyRate: 100, scheduledDays: 0, completedDays: 0 };
+  }
+
+  const targetDays = habit.targetDays && habit.targetDays.length > 0 
+    ? habit.targetDays 
+    : [0, 1, 2, 3, 4, 5, 6];
+
+  let scheduledDays = 0;
+  let completedDays = 0;
+  let bonusCompletions = 0;
+
+  const cur = new Date(createdStr + 'T12:00:00');
+  const endDate = new Date(todayStr + 'T12:00:00');
+
+  while (cur <= endDate) {
+    const dStr = formatDate(cur);
+    const dayOfWeek = cur.getDay();
+    const isTarget = targetDays.includes(dayOfWeek);
+    const isFrozen = isHabitDayFrozen(habit, dStr, todayStr);
+    const isCompleted = checkDayStatus(habit, dStr) === 'completed';
+
+    if (!isFrozen) {
+      if (dStr === todayStr) {
+        // Today is currently in progress:
+        // If completed, reward the user with +1 scheduled day and +1 completed day.
+        // If not completed yet today, do not penalize as a missed day.
+        if (isCompleted) {
+          if (isTarget) {
+            scheduledDays++;
+            completedDays++;
+          } else {
+            bonusCompletions++;
+          }
+        }
+      } else {
+        // Past day:
+        if (isTarget) {
+          scheduledDays++;
+          if (isCompleted) {
+            completedDays++;
+          }
+        } else if (isCompleted) {
+          bonusCompletions++;
+        }
+      }
+    }
+
+    cur.setDate(cur.getDate() + 1);
+  }
+
+  if (scheduledDays === 0) {
+    return { consistencyRate: 100, scheduledDays: 0, completedDays: 0 };
+  }
+
+  const totalCompleted = Math.min(scheduledDays, completedDays + bonusCompletions);
+  const consistencyRate = Math.min(100, Math.max(0, Math.round((totalCompleted / scheduledDays) * 100)));
+
+  return { consistencyRate, scheduledDays, completedDays: totalCompleted };
+}
+
+/**
+ * Calculates the overall statistics and consistency rate across active habits.
+ */
+export function calculateOverallStats(habits: Habit[], asOfDate: Date = new Date()) {
+  const activeHabitsList = habits.filter(h => !h.isFrozen);
+  let totalCompletions = 0;
+  let totalPossible = 0;
+  let allTimeCompletions = 0;
+  const todayStr = formatDate(asOfDate);
+
+  // All time completions across all habits
+  habits.forEach(h => {
+    let validComps = 0;
+    const cur = new Date(h.created + 'T12:00:00');
+    const endDate = new Date(todayStr + 'T12:00:00');
+    while (cur <= endDate) {
+      const ds = formatDate(cur);
+      if (!isHabitDayFrozen(h, ds, todayStr) && checkDayStatus(h, ds) === 'completed') {
+        validComps++;
+      }
+      cur.setDate(cur.getDate() + 1);
+    }
+    if (h.legacyStreak && h.legacyStreakDate) {
+      validComps += Math.max(0, h.legacyStreak - 1);
+    }
+    allTimeCompletions += validComps;
+  });
+
+  // Calculate consistency across active habits
+  activeHabitsList.forEach(h => {
+    const res = calculateHabitConsistency(h, asOfDate);
+    totalCompletions += res.completedDays;
+    totalPossible += res.scheduledDays;
+  });
+
+  const consistencyRate = totalPossible > 0 
+    ? Math.min(100, Math.max(0, Math.round((totalCompletions / totalPossible) * 100))) 
+    : 100;
+
+  return {
+    totalCompletions,
+    totalPossible,
+    allTimeCompletions,
+    activeHabits: activeHabitsList.length,
+    consistencyRate
+  };
+}
+

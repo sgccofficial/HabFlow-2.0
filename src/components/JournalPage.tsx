@@ -103,16 +103,31 @@ export function JournalPage() {
     setNewContent('');
   };
 
-  const filteredJournal = journal
-    .filter(j => activeHabitId === null || activeHabitId === 'general' ? true : j.habitId === activeHabitId)
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-    .concat()
-    .reverse(); // Display newest at top? Wait, sort descending and then just map.
+  const getEntryTime = (entry: any): number => {
+    if (typeof entry.createdAt === 'number' && !isNaN(entry.createdAt)) {
+      return entry.createdAt;
+    }
+    if (entry.date) {
+      const parsed = new Date(entry.date.includes('T') ? entry.date : `${entry.date}T12:00:00`).getTime();
+      if (!isNaN(parsed)) return parsed;
+    }
+    return 0;
+  };
 
-  filteredJournal.reverse(); // To ensure descending order if we want. Actually sort desc already does newest first.
-  const sortedJournal = journal
-    .filter(j => !activeHabitId ? true : j.habitId === activeHabitId)
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const sortedJournal = React.useMemo(() => {
+    return [...journal]
+      .filter(j => {
+        if (!activeHabitId || activeHabitId === 'all') return true;
+        if (activeHabitId === 'general') return !j.habitId || j.habitId === 'general';
+        return j.habitId === activeHabitId;
+      })
+      .sort((a, b) => {
+        // Arrange new to old (descending order)
+        const diff = getEntryTime(b) - getEntryTime(a);
+        if (diff !== 0) return diff;
+        return (b.id || '').localeCompare(a.id || '');
+      });
+  }, [journal, activeHabitId]);
 
   const insertSyntax = (syntax: string, isEditing: boolean = false) => {
     if (isEditing) {
