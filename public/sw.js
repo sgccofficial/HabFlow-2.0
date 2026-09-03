@@ -18,7 +18,7 @@ self.addEventListener('push', e => {
 self.addEventListener('install', (e) => {
   self.skipWaiting();
   e.waitUntil(
-    caches.open('habitflow-cache-v1.1').then((cache) => {
+    caches.open('habitflow-cache-v0.9').then((cache) => {
       return cache.addAll([
         '/',
         '/index.html',
@@ -32,7 +32,7 @@ self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys().then((keyList) => {
       return Promise.all(keyList.map((key) => {
-        if (key !== 'habitflow-cache-v1.1') {
+        if (key !== 'habitflow-cache-v0.9') {
           return caches.delete(key);
         }
       }));
@@ -52,7 +52,7 @@ self.addEventListener('fetch', (e) => {
   if (e.request.mode === 'navigate' || e.request.headers.get('accept').includes('text/html')) {
     e.respondWith(
       fetch(e.request).then((fetchRes) => {
-        return caches.open('habitflow-cache-v1.1').then((cache) => {
+        return caches.open('habitflow-cache-v0.9').then((cache) => {
           if (e.request.url.startsWith('http')) {
             cache.put(e.request, fetchRes.clone());
           }
@@ -70,7 +70,7 @@ self.addEventListener('fetch', (e) => {
   e.respondWith(
     caches.match(e.request).then((response) => {
       return response || fetch(e.request).then((fetchRes) => {
-        return caches.open('habitflow-cache-v1.1').then((cache) => {
+        return caches.open('habitflow-cache-v0.9').then((cache) => {
           // Cache successful GET requests
           if (e.request.url.startsWith('http')) {
             cache.put(e.request, fetchRes.clone());
