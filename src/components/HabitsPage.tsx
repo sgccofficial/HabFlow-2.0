@@ -675,23 +675,25 @@ export function HabitsPage() {
                               updateHabit(h.id, { isFrozen: true, frozenSince: todayStr, progress });
                             }
                           } else {
-                            if (h.isFrozen) {
-                              const newFrozenDates = new Set(h.frozenDates || []);
-                              if (h.frozenSince) {
-                                const [y, m, d] = h.frozenSince.split('-');
-                                let curr = new Date(Number(y), Number(m)-1, Number(d));
-                                const [ty, tm, td] = todayStr.split('-');
-                                const end = new Date(Number(ty), Number(tm)-1, Number(td));
-                                curr.setHours(0,0,0,0);
-                                end.setHours(0,0,0,0);
-                                while (curr < end) {
-                                  newFrozenDates.add(formatDate(curr));
-                                  curr.setDate(curr.getDate() + 1);
-                                }
+                            const newFrozenDates = new Set(h.frozenDates || []);
+                            if (h.frozenSince) {
+                              const [y, m, d] = h.frozenSince.split('-');
+                              let curr = new Date(Number(y), Number(m)-1, Number(d));
+                              const [ty, tm, td] = todayStr.split('-');
+                              const end = new Date(Number(ty), Number(tm)-1, Number(td));
+                              curr.setHours(0,0,0,0);
+                              end.setHours(0,0,0,0);
+                              while (curr < end) {
+                                newFrozenDates.add(formatDate(curr));
+                                curr.setDate(curr.getDate() + 1);
                               }
-                              newFrozenDates.delete(todayStr); // Ensure today is not frozen when unfreezing
-                              updateHabit(h.id, { isFrozen: false, frozenSince: null, frozenDates: Array.from(newFrozenDates) });
                             }
+                            newFrozenDates.delete(todayStr); // Ensure today is not frozen when unfreezing
+                            updateHabit(h.id, { 
+                              isFrozen: false, 
+                              frozenSince: null, 
+                              frozenDates: Array.from(newFrozenDates)
+                            });
                           }
                         });
                         setCategoryModalState('hidden');

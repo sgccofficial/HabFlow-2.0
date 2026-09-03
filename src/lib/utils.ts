@@ -24,6 +24,10 @@ function getStartOfWeek(date: Date): Date {
 }
 
 export function isHabitDayFrozen(habit: Habit, dStr: string, todayStr: string): boolean {
+  if (!habit.isFrozen && dStr === todayStr) {
+    return false; // Guarantee that if a habit is unfrozen, today is definitely unfrozen
+  }
+  
   if (habit.frozenDates?.includes(dStr)) return true;
   if (habit.isFrozen && habit.frozenSince) {
     if (dStr >= habit.frozenSince && dStr <= todayStr) {
