@@ -11,7 +11,7 @@ if (!localStorage.getItem('wiped_accounts_checkup')) {
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').then(reg => {
+    navigator.serviceWorker.register('/sw.js?v=' + Date.now()).then(reg => {
       reg.addEventListener('updatefound', () => {
         const newWorker = reg.installing;
         if (newWorker) {
