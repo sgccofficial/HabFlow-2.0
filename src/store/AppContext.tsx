@@ -11,6 +11,7 @@ interface AppContextType {
   activeHabitId: string | null;
   user: any | null;
   setUser: (user: any | null) => void;
+  signOutAccount: () => Promise<void>;
   setCurrentPage: (page: Page) => void;
   setActiveHabitId: (id: string | null) => void;
   updateJournalSettings: (habitId: string, settings: JournalSettings) => void;
@@ -41,68 +42,90 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const lastLocalEditTime = useRef<number>(0);
   const lastSyncedState = useRef({ habits: '', journal: '', journalSettings: '', appSettings: '' });
   const saveTimeoutRef = useRef<any>(null);
+  const isLoggingOutRef = useRef<boolean>(false);
+  const unsubscribeFirebaseRef = useRef<(() => void) | null>(null);
 
   const getStorageKey = (key: string, targetUser = user) => {
-    return targetUser ? `${key}_${targetUser.id}` : key;
+    if (targetUser && targetUser.id) {
+      return `${key}_${targetUser.id}`;
+    }
+    return key.replace('habitflow_', 'habitflow_local_');
   };
 
   const [habits, setHabits] = useState<Habit[]>(() => {
     const savedUser = localStorage.getItem('habitflow_current_user');
     const u = savedUser ? JSON.parse(savedUser) : null;
-    const key = u ? `habitflow_habits_${u.id}` : 'habitflow_habits';
-    const saved = localStorage.getItem(key);
+    if (u && u.id) {
+      const saved = localStorage.getItem(`habitflow_habits_${u.id}`);
+      return saved ? JSON.parse(saved) : [];
+    }
+    // Strictly isolate local account habits
+    const saved = localStorage.getItem('habitflow_local_habits');
     return saved ? JSON.parse(saved) : [];
   });
 
   const [journal, setJournal] = useState<JournalEntry[]>(() => {
     const savedUser = localStorage.getItem('habitflow_current_user');
     const u = savedUser ? JSON.parse(savedUser) : null;
-    const key = u ? `habitflow_journal_${u.id}` : 'habitflow_journal';
-    const saved = localStorage.getItem(key);
+    if (u && u.id) {
+      const saved = localStorage.getItem(`habitflow_journal_${u.id}`);
+      return saved ? JSON.parse(saved) : [];
+    }
+    const saved = localStorage.getItem('habitflow_local_journal');
     return saved ? JSON.parse(saved) : [];
   });
 
   const [journalSettings, setJournalSettings] = useState<Record<string, JournalSettings>>(() => {
     const savedUser = localStorage.getItem('habitflow_current_user');
     const u = savedUser ? JSON.parse(savedUser) : null;
-    const key = u ? `habitflow_journal_settings_${u.id}` : 'habitflow_journal_settings';
-    const saved = localStorage.getItem(key);
+    if (u && u.id) {
+      const saved = localStorage.getItem(`habitflow_journal_settings_${u.id}`);
+      return saved ? JSON.parse(saved) : {};
+    }
+    const saved = localStorage.getItem('habitflow_local_journal_settings');
     return saved ? JSON.parse(saved) : {};
   });
 
   const [appSettings, setAppSettings] = useState<JournalSettings>(() => {
     const savedUser = localStorage.getItem('habitflow_current_user');
     const u = savedUser ? JSON.parse(savedUser) : null;
-    const key = u ? `habitflow_app_settings_${u.id}` : 'habitflow_app_settings';
-    const saved = localStorage.getItem(key);
+    if (u && u.id) {
+      const saved = localStorage.getItem(`habitflow_app_settings_${u.id}`);
+      return saved ? JSON.parse(saved) : {};
+    }
+    const saved = localStorage.getItem('habitflow_local_app_settings');
     return saved ? JSON.parse(saved) : {};
   });
 
   // 1. Instant local persistence: save to localStorage on every change
   useEffect(() => {
+    if (isLoggingOutRef.current) return;
     const key = getStorageKey('habitflow_habits');
     localStorage.setItem(key, JSON.stringify(habits));
     syncNotificationSettings(habits);
   }, [habits, user]);
 
   useEffect(() => {
+    if (isLoggingOutRef.current) return;
     const key = getStorageKey('habitflow_journal');
     localStorage.setItem(key, JSON.stringify(journal));
   }, [journal, user]);
 
   useEffect(() => {
+    if (isLoggingOutRef.current) return;
     const key = getStorageKey('habitflow_journal_settings');
     localStorage.setItem(key, JSON.stringify(journalSettings));
   }, [journalSettings, user]);
 
   useEffect(() => {
+    if (isLoggingOutRef.current) return;
     const key = getStorageKey('habitflow_app_settings');
     localStorage.setItem(key, JSON.stringify(appSettings));
   }, [appSettings, user]);
 
-  // 2. Debounced save to Firebase when state changes
+  // 2. Debounced save to Firebase when state changes (ONLY for authenticated cloud accounts)
   useEffect(() => {
-    if (!user) return;
+    if (!user || !user.id || isLoggingOutRef.current) return;
 
     const habitsStr = JSON.stringify(habits);
     const journalStr = JSON.stringify(journal);
@@ -122,7 +145,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       clearTimeout(saveTimeoutRef.current);
     }
 
+    const currentUserId = user.id;
+
     saveTimeoutRef.current = setTimeout(async () => {
+      // Guard against writing if logged out or if user changed
+      if (isLoggingOutRef.current || !currentUserId) return;
       try {
         const { db } = await import('../lib/firebase');
         const { doc, setDoc } = await import('firebase/firestore');
@@ -142,7 +169,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           lastUpdated: Date.now()
         };
 
-        await setDoc(doc(db, 'users', user.id), cleanData, { merge: true });
+        await setDoc(doc(db, 'users', currentUserId), cleanData, { merge: true });
       } catch (error) {
         console.error("Failed to save to Firebase:", error);
       }
@@ -155,9 +182,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   // 3. Sync and load on user switch / mount
   useEffect(() => {
-    let unsubscribe = () => {};
+    if (isLoggingOutRef.current) return;
 
-    if (user) {
+    if (unsubscribeFirebaseRef.current) {
+      unsubscribeFirebaseRef.current();
+      unsubscribeFirebaseRef.current = null;
+    }
+
+    if (user && user.id) {
       localStorage.setItem('habitflow_current_user', JSON.stringify(user));
 
       // Immediately restore this user's local data (instant, no flicker)
@@ -183,7 +215,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
           let isFirstRemoteSync = true;
 
-          unsubscribe = onSnapshot(
+          const unsub = onSnapshot(
             doc(db, 'users', user.id),
             (userDoc) => {
               if (userDoc.metadata.hasPendingWrites) {
@@ -212,7 +244,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                     setHabits(prev => JSON.stringify(prev) !== str ? data.habits : prev);
                   }
                 } else if (isFirstRemoteSync) {
-                  // Push local habits to remote if remote is empty
+                  // Push user's local habits to remote if remote is empty
                   const existingLocal = localStorage.getItem(userHabitsKey);
                   if (existingLocal) {
                     const parsed = JSON.parse(existingLocal);
@@ -253,6 +285,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               console.warn("Firestore snapshot listener error:", error);
             }
           );
+          unsubscribeFirebaseRef.current = unsub;
         } catch (error) {
           console.error("Failed to load Firebase data:", error);
         }
@@ -261,18 +294,75 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       loadFirebaseData();
     } else {
       localStorage.removeItem('habitflow_current_user');
-      const h = localStorage.getItem('habitflow_habits');
+      const h = localStorage.getItem('habitflow_local_habits');
       setHabits(h ? JSON.parse(h) : []);
-      const j = localStorage.getItem('habitflow_journal');
+      const j = localStorage.getItem('habitflow_local_journal');
       setJournal(j ? JSON.parse(j) : []);
-      const js = localStorage.getItem('habitflow_journal_settings');
+      const js = localStorage.getItem('habitflow_local_journal_settings');
       setJournalSettings(js ? JSON.parse(js) : {});
-      const as = localStorage.getItem('habitflow_app_settings');
+      const as = localStorage.getItem('habitflow_local_app_settings');
       setAppSettings(as ? JSON.parse(as) : {});
     }
 
-    return () => unsubscribe();
+    return () => {
+      if (unsubscribeFirebaseRef.current) {
+        unsubscribeFirebaseRef.current();
+        unsubscribeFirebaseRef.current = null;
+      }
+    };
   }, [user]);
+
+  const signOutAccount = async () => {
+    isLoggingOutRef.current = true;
+
+    // 1. Immediately cancel any scheduled sync/write to Firebase
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
+
+    // 2. Unsubscribe any active Firestore listeners
+    if (unsubscribeFirebaseRef.current) {
+      unsubscribeFirebaseRef.current();
+      unsubscribeFirebaseRef.current = null;
+    }
+
+    // 3. Clear user session
+    localStorage.removeItem('habitflow_current_user');
+
+    // 4. Remove any stale/legacy keys to prevent leakage
+    localStorage.removeItem('habitflow_habits');
+    localStorage.removeItem('habitflow_journal');
+    localStorage.removeItem('habitflow_journal_settings');
+    localStorage.removeItem('habitflow_app_settings');
+
+    // 5. Sign out of Firebase Auth
+    try {
+      const { auth } = await import('../lib/firebase');
+      await auth.signOut();
+    } catch (e) {
+      console.warn('Firebase signOut error:', e);
+    }
+
+    // 6. Restore the dedicated local account (clean, independent from previous user's tasks)
+    const localH = localStorage.getItem('habitflow_local_habits');
+    const localJ = localStorage.getItem('habitflow_local_journal');
+    const localJS = localStorage.getItem('habitflow_local_journal_settings');
+    const localAS = localStorage.getItem('habitflow_local_app_settings');
+
+    setHabits(localH ? JSON.parse(localH) : []);
+    setJournal(localJ ? JSON.parse(localJ) : []);
+    setJournalSettings(localJS ? JSON.parse(localJS) : {});
+    setAppSettings(localAS ? JSON.parse(localAS) : {});
+    setActiveHabitId(null);
+    setUser(null);
+
+    lastSyncedState.current = { habits: '', journal: '', journalSettings: '', appSettings: '' };
+
+    setTimeout(() => {
+      isLoggingOutRef.current = false;
+    }, 100);
+  };
 
   const setUserAndBackup = (newUser: any) => {
     setUser(newUser);
@@ -612,6 +702,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   return (
     <AppContext.Provider value={{
       habits, journal, journalSettings, appSettings, currentPage, setCurrentPage, activeHabitId, setActiveHabitId, user, setUser: setUserAndBackup,
+      signOutAccount,
       updateJournalSettings, updateAppSettings,
       addHabit, updateHabit, deleteHabit, reorderHabits, toggleHabitDate, updateHabitProgress,
       addJournalEntry, updateJournalEntry, deleteJournalEntry,

@@ -17,7 +17,7 @@ import { ImageCropper } from './components/ImageCropper';
 import { Eye, EyeOff } from 'lucide-react';
 
 function AppContent() {
-  const { currentPage, darkMode, toggleDarkMode, habits, appSettings, updateAppSettings, journal, user, setUser, addJournalEntry, setCurrentPage } = useAppContext();
+  const { currentPage, darkMode, toggleDarkMode, habits, appSettings, updateAppSettings, journal, user, setUser, signOutAccount, addJournalEntry, setCurrentPage } = useAppContext();
   const checkedReminders = useRef<Set<string>>(new Set());
   const [showGlobalSettings, setShowGlobalSettings] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -242,21 +242,21 @@ function AppContent() {
             await auth.currentUser.delete();
           }
           
-          setUser(null);
-          localStorage.removeItem(`habitflow_current_user`);
-          window.location.reload();
+          await signOutAccount();
         } catch (error: any) {
           setModalError("Action failed: " + error.message);
+          return;
         }
+        setModalState({ type: null, input: '' });
         return;
       } else if (modalState.type === 'signout') {
         try {
-          const { auth } = await import('./lib/firebase');
-          await auth.signOut();
-        } catch (e) {}
-        setUser(null);
-        localStorage.removeItem(`habitflow_current_user`);
-        window.location.reload();
+          await signOutAccount();
+        } catch (e: any) {
+          setModalError("Action failed: " + (e?.message || 'Sign out failed'));
+          return;
+        }
+        setModalState({ type: null, input: '' });
         return;
       }
       setModalState({ type: null, input: '' });
@@ -548,14 +548,24 @@ function AppContent() {
               )}
             </div>
           ) : (
-            <button 
-              onClick={() => {
-                setModalState({ type: 'auth_options', input: '' });
-              }}
-              className="pointer-events-auto flex items-center gap-2 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow transition-colors text-sm font-medium h-10"
-            >
-              <User className="w-4 h-4" /> Sign In
-            </button>
+            <div className="relative pointer-events-auto flex items-center gap-2">
+              <button
+                onClick={() => setModalState({ type: 'auth_options', input: '' })}
+                title="You are using a Local Account. Tasks are saved on this device only."
+                className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-white/80 dark:bg-gray-900/80 hover:bg-gray-100 dark:hover:bg-gray-800 backdrop-blur border border-gray-200 dark:border-gray-800 shadow text-xs text-gray-700 dark:text-gray-300 transition"
+              >
+                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="font-medium">Local Account</span>
+              </button>
+              <button 
+                onClick={() => {
+                  setModalState({ type: 'auth_options', input: '' });
+                }}
+                className="flex items-center gap-2 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow transition-colors text-sm font-medium h-10"
+              >
+                <User className="w-4 h-4" /> Sign In
+              </button>
+            </div>
           )}
         </div>
       </header>
