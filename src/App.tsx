@@ -17,7 +17,7 @@ import { ImageCropper } from './components/ImageCropper';
 import { Eye, EyeOff } from 'lucide-react';
 
 function AppContent() {
-  const { currentPage, darkMode, toggleDarkMode, habits, appSettings, updateAppSettings, journal, user, setUser, signOutAccount, addJournalEntry, setCurrentPage } = useAppContext();
+  const { currentPage, darkMode, toggleDarkMode, habits, appSettings, updateAppSettings, journal, user, setUser, createAccount, signInAccount, signOutAccount, addJournalEntry, setCurrentPage } = useAppContext();
   const checkedReminders = useRef<Set<string>>(new Set());
   const [showGlobalSettings, setShowGlobalSettings] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -105,35 +105,13 @@ function AppContent() {
         }
         
         try {
-          const { createUserWithEmailAndPassword } = await import('firebase/auth');
-          const { auth, db } = await import('./lib/firebase');
-          const { doc, setDoc, getDoc } = await import('firebase/firestore');
-          
-          const userDoc = await getDoc(doc(db, 'usernames', username.toLowerCase()));
-          if (userDoc.exists()) {
-            setModalError("An account with this username already exists.");
-            return;
-          }
-          
-          const email = `${username.toLowerCase()}@habitflow.local`;
-          const userCredential = await createUserWithEmailAndPassword(auth, email, pwd);
-          const uid = userCredential.user.uid;
-          
-          const newUser = {
-            id: uid,
-            username,
-            name: displayName,
-            photoURL: modalState.profilePic || ''
-          };
-          
-          await setDoc(doc(db, 'usernames', username.toLowerCase()), { uid });
-          await setDoc(doc(db, 'users', uid), newUser);
-          
-          setUser(newUser);
+          await createAccount(username, displayName, modalState.profilePic || '', pwd);
           setModalState({ type: 'success', input: 'Account created successfully!' });
-          setTimeout(() => window.location.reload(), 1500);
+          setTimeout(() => {
+            setModalState({ type: null, input: '' });
+          }, 1200);
         } catch (error: any) {
-          setModalError(error.message);
+          setModalError(error.message || "Failed to create account.");
         }
         return;
       } else if (modalState.type === 'sign_in') {
@@ -143,31 +121,23 @@ function AppContent() {
           setModalError("Username can't be left blank.");
           return;
         }
+        if (pwd.length < 4 || pwd.length > 16) {
+          setModalError("Password must have 4-16 characters.");
+          return;
+        }
         
         try {
-          const { signInWithEmailAndPassword } = await import('firebase/auth');
-          const { auth, db } = await import('./lib/firebase');
-          const { doc, getDoc } = await import('firebase/firestore');
-          
-          const email = `${username.toLowerCase()}@habitflow.local`;
-          const userCredential = await signInWithEmailAndPassword(auth, email, pwd);
-          const uid = userCredential.user.uid;
-          
-          const userDoc = await getDoc(doc(db, 'users', uid));
-          if (userDoc.exists()) {
-            setUser(userDoc.data());
-          } else {
-            setUser({ id: uid, username, name: username, photoURL: '' });
-          }
-          
+          await signInAccount(username, pwd);
           setModalState({ type: 'success', input: 'Signed in successfully!' });
-          setTimeout(() => window.location.reload(), 1500);
+          setTimeout(() => {
+            setModalState({ type: null, input: '' });
+          }, 1200);
         } catch (error: any) {
-          if (pwd.length < 4 || pwd.length > 16) {
-            setModalError("Password must have 4-16 characters.");
-            return;
+          if (error.code === 'auth/wrong-password' || error.code === 'auth/user-not-found' || error.code === 'auth/invalid-credential') {
+            setModalError("Incorrect username or password.");
+          } else {
+            setModalError(error.message || "Incorrect username or password.");
           }
-          setModalError("Incorrect username or password.");
         }
         return;
       } else if (modalState.type === 'name') {
@@ -548,24 +518,14 @@ function AppContent() {
               )}
             </div>
           ) : (
-            <div className="relative pointer-events-auto flex items-center gap-2">
-              <button
-                onClick={() => setModalState({ type: 'auth_options', input: '' })}
-                title="You are using a Local Account. Tasks are saved on this device only."
-                className="flex items-center gap-1.5 px-3 py-2 rounded-full bg-white/80 dark:bg-gray-900/80 hover:bg-gray-100 dark:hover:bg-gray-800 backdrop-blur border border-gray-200 dark:border-gray-800 shadow text-xs text-gray-700 dark:text-gray-300 transition"
-              >
-                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="font-medium">Local Account</span>
-              </button>
-              <button 
-                onClick={() => {
-                  setModalState({ type: 'auth_options', input: '' });
-                }}
-                className="flex items-center gap-2 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow transition-colors text-sm font-medium h-10"
-              >
-                <User className="w-4 h-4" /> Sign In
-              </button>
-            </div>
+            <button 
+              onClick={() => {
+                setModalState({ type: 'auth_options', input: '' });
+              }}
+              className="pointer-events-auto flex items-center gap-2 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow transition-colors text-sm font-medium h-10"
+            >
+              <User className="w-4 h-4" /> Sign In
+            </button>
           )}
         </div>
       </header>
