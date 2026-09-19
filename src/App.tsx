@@ -21,10 +21,11 @@ function AppContent() {
   const checkedReminders = useRef<Set<string>>(new Set());
   const [showGlobalSettings, setShowGlobalSettings] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [modalState, setModalState] = useState<{type: 'name' | 'real_name' | 'photo_options' | 'delete' | 'signout' | 'success' | 'auth_options' | 'create_account' | 'sign_in' | null, input: string, nameInput?: string, password?: string, profilePic?: string}>({type: null, input: '', nameInput: '', password: '', profilePic: ''});
+  const [modalState, setModalState] = useState<{type: 'name' | 'real_name' | 'photo_options' | 'delete' | 'signout' | 'success' | 'auth_options' | 'create_account' | 'sign_in' | 'ai_analysis' | null, input: string, nameInput?: string, password?: string, profilePic?: string}>({type: null, input: '', nameInput: '', password: '', profilePic: ''});
   const [showPassword, setShowPassword] = useState(false);
   const [modalError, setModalError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isAiToggling, setIsAiToggling] = useState(false);
   const [shareData, setShareData] = useState<{title: string, text: string, url: string} | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -320,6 +321,26 @@ function AppContent() {
     setModalState({ type: 'signout', input: '' });
   };
 
+  const handleToggleAiAnalysis = async (enable: boolean) => {
+    setIsAiToggling(true);
+    setModalError('');
+    try {
+      await updateAppSettings({ aiAnalysisEnabled: enable });
+      await new Promise(r => setTimeout(r, 450));
+      setModalState({
+        type: 'success',
+        input: enable ? 'AI Analysis is turned on.' : 'AI Analysis is turned off.'
+      });
+      setTimeout(() => {
+        setModalState(prev => prev.type === 'success' ? { type: null, input: '' } : prev);
+      }, 1500);
+    } catch (err: any) {
+      setModalError("Action failed: " + (err?.message || "Failed to update setting"));
+    } finally {
+      setIsAiToggling(false);
+    }
+  };
+
   useEffect(() => {
     const metaThemeColor = document.querySelector('meta[name="theme-color"]');
     if (metaThemeColor) {
@@ -493,29 +514,15 @@ function AppContent() {
                     >
                       <Camera className="w-4 h-4" /> Change Profile Picture
                     </button>
-                  </div>
-                  <div className="h-px bg-gray-100 dark:bg-gray-700 w-full" />
-                  <div className="p-3 bg-gray-50/70 dark:bg-gray-800/40">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-lg bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center">
-                          <Sparkles className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <span className="text-sm font-semibold text-gray-900 dark:text-white block">AI Analysis</span>
-                          <span className="text-[11px] text-gray-500 dark:text-gray-400 block">Habit insights in Analytics</span>
-                        </div>
-                      </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input 
-                          type="checkbox"
-                          checked={appSettings?.aiAnalysisEnabled !== false}
-                          onChange={(e) => updateAppSettings({ aiAnalysisEnabled: e.target.checked })}
-                          className="sr-only peer"
-                        />
-                        <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-purple-600"></div>
-                      </label>
-                    </div>
+                    <button 
+                      onClick={() => {
+                        setShowProfileMenu(false);
+                        setModalState({ type: 'ai_analysis', input: '' });
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors flex items-center gap-2"
+                    >
+                      <Sparkles className="w-4 h-4" /> AI Analysis
+                    </button>
                   </div>
                   <div className="h-px bg-gray-100 dark:bg-gray-700 w-full" />
                   <div className="p-2 space-y-1">
@@ -541,22 +548,13 @@ function AppContent() {
               )}
             </div>
           ) : (
-            <div className="relative pointer-events-auto flex items-center gap-2">
+            <div className="relative pointer-events-auto flex items-center">
               <button 
                 onClick={toggleProfileMenu}
                 className="w-10 h-10 rounded-full overflow-hidden border border-gray-200 dark:border-gray-800 shadow flex items-center justify-center bg-white/80 dark:bg-gray-900/80 text-gray-600 dark:text-gray-300 hover:text-indigo-600 transition"
                 title="Profile Menu & Settings"
               >
                 <User className="w-5 h-5" />
-              </button>
-              
-              <button 
-                onClick={() => {
-                  setModalState({ type: 'auth_options', input: '' });
-                }}
-                className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow transition-colors text-xs font-semibold h-10"
-              >
-                Sign In
               </button>
 
               {showProfileMenu && (
@@ -571,7 +569,7 @@ function AppContent() {
                     </div>
                   </div>
 
-                  <div className="p-2">
+                  <div className="p-2 space-y-1">
                     <button 
                       onClick={() => {
                         setShowProfileMenu(false);
@@ -581,31 +579,15 @@ function AppContent() {
                     >
                       <User className="w-4 h-4" /> Sign In / Create Account
                     </button>
-                  </div>
-
-                  <div className="h-px bg-gray-100 dark:bg-gray-700 w-full" />
-
-                  <div className="p-3 bg-gray-50/70 dark:bg-gray-800/40">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-lg bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center">
-                          <Sparkles className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <span className="text-sm font-semibold text-gray-900 dark:text-white block">AI Analysis</span>
-                          <span className="text-[11px] text-gray-500 dark:text-gray-400 block">Habit insights in Analytics</span>
-                        </div>
-                      </div>
-                      <label className="relative inline-flex items-center cursor-pointer">
-                        <input 
-                          type="checkbox"
-                          checked={appSettings?.aiAnalysisEnabled !== false}
-                          onChange={(e) => updateAppSettings({ aiAnalysisEnabled: e.target.checked })}
-                          className="sr-only peer"
-                        />
-                        <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-purple-600"></div>
-                      </label>
-                    </div>
+                    <button 
+                      onClick={() => {
+                        setShowProfileMenu(false);
+                        setModalState({ type: 'ai_analysis', input: '' });
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors flex items-center gap-2"
+                    >
+                      <Sparkles className="w-4 h-4" /> AI Analysis
+                    </button>
                   </div>
 
                   <div className="p-2 border-t border-gray-100 dark:border-gray-700">
@@ -727,10 +709,16 @@ function AppContent() {
 
       {/* Custom Modal */}
       {modalState.type && (
-        <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300">
+        <div 
+          onClick={() => !isSubmitting && !isAiToggling && setModalState({ type: null, input: '' })}
+          className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300"
+        >
           <div onClick={(e) => e.stopPropagation()} className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-2xl w-full max-w-sm border border-gray-200 dark:border-gray-700 animate-in zoom-in-95 duration-300">
             {modalState.type === 'success' ? (
-              <div className="flex flex-col items-center py-4">
+              <div 
+                onClick={() => setModalState({ type: null, input: '' })}
+                className="flex flex-col items-center py-4 cursor-pointer"
+              >
                 <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-4">
                   <Check className="w-8 h-8" />
                 </div>
@@ -747,6 +735,7 @@ function AppContent() {
                   {modalState.type === 'auth_options' && 'Sign In'}
                   {modalState.type === 'create_account' && 'Create Account'}
                   {modalState.type === 'sign_in' && 'Sign In'}
+                  {modalState.type === 'ai_analysis' && 'AI Analysis'}
                 </h3>
                 
                 {modalState.type === 'auth_options' && (
@@ -877,6 +866,48 @@ function AppContent() {
               </div>
             )}
             
+            {modalState.type === 'ai_analysis' && (
+              <div className="flex flex-col gap-2.5 pt-1">
+                {modalError && (
+                  <p className="text-xs text-red-500 font-medium mb-1">{modalError}</p>
+                )}
+
+                {appSettings?.aiAnalysisEnabled !== false ? (
+                  <button
+                    disabled={isAiToggling}
+                    onClick={() => handleToggleAiAnalysis(false)}
+                    className="w-full px-4 py-2.5 bg-red-600 hover:bg-red-700 disabled:opacity-75 text-white font-medium rounded-xl transition flex items-center justify-center text-sm min-h-[42px]"
+                  >
+                    {isAiToggling ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      'Turn Off'
+                    )}
+                  </button>
+                ) : (
+                  <button
+                    disabled={isAiToggling}
+                    onClick={() => handleToggleAiAnalysis(true)}
+                    className="w-full px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-75 text-white font-medium rounded-xl transition flex items-center justify-center text-sm min-h-[42px]"
+                  >
+                    {isAiToggling ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      'Turn On'
+                    )}
+                  </button>
+                )}
+
+                <button
+                  disabled={isAiToggling}
+                  onClick={() => setModalState({ type: null, input: '' })}
+                  className="w-full px-4 py-2 text-gray-600 dark:text-gray-300 font-medium rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition text-center text-sm disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+            
             {modalState.type === 'delete' && (
               <p className="text-sm text-red-600 dark:text-red-400 mb-4">
                 Are you sure you want to delete your account? This action cannot be undone and you will lose all your data.
@@ -889,7 +920,7 @@ function AppContent() {
               </p>
             )}
 
-            {modalState.type !== 'photo_options' && (
+            {modalState.type !== 'photo_options' && modalState.type !== 'ai_analysis' && (
               <div className="flex gap-2 justify-end">
                 <button
                   onClick={() => {

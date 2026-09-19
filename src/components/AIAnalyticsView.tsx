@@ -472,26 +472,7 @@ export const AIAnalyticsView: React.FC<AIAnalyticsViewProps> = ({ habits, today,
 
   // If user has disabled AI analysis in profile settings:
   if (!isAiEnabled) {
-    return (
-      <div className="space-y-6">
-        <div className="bg-white dark:bg-gray-900 rounded-3xl p-8 shadow-sm border border-purple-100 dark:border-purple-950/40 text-center">
-          <div className="w-16 h-16 rounded-2xl bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 mx-auto flex items-center justify-center mb-4">
-            <Sparkles className="w-8 h-8" />
-          </div>
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">AI Analysis is Turned Off</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 max-w-md mx-auto mb-6 leading-relaxed">
-            AI-powered habit intelligence, circadian time analysis, and 30/90-day trajectory diagnostics are currently disabled in your profile preferences.
-          </p>
-          <button
-            onClick={() => updateAppSettings({ aiAnalysisEnabled: true })}
-            className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-medium text-sm shadow-md hover:from-purple-700 hover:to-indigo-700 transition"
-          >
-            <Sparkles className="w-4 h-4" />
-            Enable AI Analysis
-          </button>
-        </div>
-      </div>
-    );
+    return null;
   }
 
   // If user has no habits:
@@ -499,10 +480,7 @@ export const AIAnalyticsView: React.FC<AIAnalyticsViewProps> = ({ habits, today,
     return (
       <div className="bg-white dark:bg-gray-900 rounded-3xl p-8 text-center border border-gray-100 dark:border-gray-800">
         <Sparkles className="w-12 h-12 text-purple-400 mx-auto mb-3" />
-        <h3 className="text-lg font-bold text-gray-900 dark:text-white">No Habit Data Yet</h3>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 max-w-sm mx-auto">
-          Create and track a few habits first. AI will immediately analyze your performance patterns!
-        </p>
+        <h3 className="text-lg font-bold text-gray-900 dark:text-white">No Habit Data Yet.</h3>
       </div>
     );
   }
