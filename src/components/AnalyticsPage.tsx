@@ -2,9 +2,10 @@ import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../store/AppContext';
 import { format, subDays, eachDayOfInterval, parseISO, getDay, isSameDay, startOfWeek, endOfWeek, isAfter, isBefore, isToday } from 'date-fns';
 import { calculateStreak, calculateLongestStreak, cn, isHabitDayFrozen, formatDate, getHabitTargetValue, getHabitProgressValue, checkDayStatus, calculateHabitConsistency, calculateOverallStats, getHabitScheduleForDate } from '../lib/utils';
-import { TrendingUp, Award, CalendarDays, Activity, Share2, CheckCircle2, ChevronUp, ChevronDown } from 'lucide-react';
+import { TrendingUp, Award, CalendarDays, Activity, Share2, CheckCircle2, ChevronUp, ChevronDown, Sparkles } from 'lucide-react';
 import { ShareMilestoneModal } from './ShareMilestoneModal';
 import { getIcon } from './HabitCard';
+import { AIAnalyticsView } from './AIAnalyticsView';
 
 export function AnalyticsPage() {
   const { habits, journal, activeHabitId, setActiveHabitId } = useAppContext();
@@ -19,8 +20,8 @@ export function AnalyticsPage() {
 
   const handleSelectHabit = (id: string) => {
     setSelectedHabitId(id);
-    setActiveHabitId(id === 'all' ? null : id);
-    if (id !== 'all') {
+    setActiveHabitId(id === 'all' || id === 'ai' ? null : id);
+    if (id !== 'all' && id !== 'ai') {
       setTimeout(() => {
         const el = document.getElementById(`habit-tab-${id}`);
         if (el) {
@@ -388,6 +389,19 @@ export function AnalyticsPage() {
           >
             Overview
           </button>
+          <button
+            id="habit-tab-ai"
+            onClick={() => handleSelectHabit('ai')}
+            className={cn(
+              "flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all flex items-center gap-1.5",
+              selectedHabitId === 'ai' 
+                ? "bg-gradient-to-r from-purple-600 via-indigo-600 to-pink-600 text-white shadow-md shadow-purple-500/25" 
+                : "bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300 border border-purple-200/60 dark:border-purple-800/40 hover:bg-purple-100 dark:hover:bg-purple-900/40"
+            )}
+          >
+            <Sparkles className="w-3.5 h-3.5 text-purple-500 dark:text-purple-300" />
+            AI
+          </button>
           {habits.map(h => (
             <button
               key={h.id}
@@ -487,6 +501,12 @@ export function AnalyticsPage() {
               />
             )}
           </div>
+        ) : selectedHabitId === 'ai' ? (
+          <AIAnalyticsView 
+            habits={habits}
+            today={today}
+            onSelectHabit={handleSelectHabit}
+          />
         ) : selectedHabit && habitAnalytics ? (
           <div className="space-y-6">
             {/* Stats Row */}

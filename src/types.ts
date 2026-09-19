@@ -45,6 +45,7 @@ export interface JournalSettings {
   color?: string;
   texture?: string;
   isRandomBackground?: boolean;
+  aiAnalysisEnabled?: boolean;
 }
 
 export type Page = 'habits' | 'timer' | 'journal' | 'analytics';

@@ -11,7 +11,7 @@ import { TimerPage } from './components/TimerPage';
 import { JournalPage } from './components/JournalPage';
 import { AnalyticsPage } from './components/AnalyticsPage';
 import { formatDate, cn } from './lib/utils';
-import { Moon, Sun, Palette, X, User, LogOut, Check, Camera, Mail, Trash2, AtSign, Loader2 } from 'lucide-react';
+import { Moon, Sun, Palette, X, User, LogOut, Check, Camera, Mail, Trash2, AtSign, Loader2, Sparkles } from 'lucide-react';
 import { BACKGROUND_COLORS, BACKGROUND_TEXTURES } from './lib/constants';
 import { ImageCropper } from './components/ImageCropper';
 import { Eye, EyeOff } from 'lucide-react';
@@ -495,6 +495,29 @@ function AppContent() {
                     </button>
                   </div>
                   <div className="h-px bg-gray-100 dark:bg-gray-700 w-full" />
+                  <div className="p-3 bg-gray-50/70 dark:bg-gray-800/40">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center">
+                          <Sparkles className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <span className="text-sm font-semibold text-gray-900 dark:text-white block">AI Analysis</span>
+                          <span className="text-[11px] text-gray-500 dark:text-gray-400 block">Habit insights in Analytics</span>
+                        </div>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input 
+                          type="checkbox"
+                          checked={appSettings?.aiAnalysisEnabled !== false}
+                          onChange={(e) => updateAppSettings({ aiAnalysisEnabled: e.target.checked })}
+                          className="sr-only peer"
+                        />
+                        <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-purple-600"></div>
+                      </label>
+                    </div>
+                  </div>
+                  <div className="h-px bg-gray-100 dark:bg-gray-700 w-full" />
                   <div className="p-2 space-y-1">
                     <button 
                       onClick={handleSignOutConfirm}
@@ -518,14 +541,81 @@ function AppContent() {
               )}
             </div>
           ) : (
-            <button 
-              onClick={() => {
-                setModalState({ type: 'auth_options', input: '' });
-              }}
-              className="pointer-events-auto flex items-center gap-2 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow transition-colors text-sm font-medium h-10"
-            >
-              <User className="w-4 h-4" /> Sign In
-            </button>
+            <div className="relative pointer-events-auto flex items-center gap-2">
+              <button 
+                onClick={toggleProfileMenu}
+                className="w-10 h-10 rounded-full overflow-hidden border border-gray-200 dark:border-gray-800 shadow flex items-center justify-center bg-white/80 dark:bg-gray-900/80 text-gray-600 dark:text-gray-300 hover:text-indigo-600 transition"
+                title="Profile Menu & Settings"
+              >
+                <User className="w-5 h-5" />
+              </button>
+              
+              <button 
+                onClick={() => {
+                  setModalState({ type: 'auth_options', input: '' });
+                }}
+                className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow transition-colors text-xs font-semibold h-10"
+              >
+                Sign In
+              </button>
+
+              {showProfileMenu && (
+                <div onClick={(e) => e.stopPropagation()} className="absolute top-12 right-0 min-w-[16rem] w-max max-w-[90vw] sm:max-w-sm bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden z-[70] text-gray-900 dark:text-white">
+                  <div className="p-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm flex shrink-0 items-center justify-center bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400">
+                      <User className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold">Local Account</p>
+                      <p className="text-xs text-gray-500">Stored on this device</p>
+                    </div>
+                  </div>
+
+                  <div className="p-2">
+                    <button 
+                      onClick={() => {
+                        setShowProfileMenu(false);
+                        setModalState({ type: 'auth_options', input: '' });
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-xs"
+                    >
+                      <User className="w-4 h-4" /> Sign In / Create Account
+                    </button>
+                  </div>
+
+                  <div className="h-px bg-gray-100 dark:bg-gray-700 w-full" />
+
+                  <div className="p-3 bg-gray-50/70 dark:bg-gray-800/40">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-purple-100 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 flex items-center justify-center">
+                          <Sparkles className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <span className="text-sm font-semibold text-gray-900 dark:text-white block">AI Analysis</span>
+                          <span className="text-[11px] text-gray-500 dark:text-gray-400 block">Habit insights in Analytics</span>
+                        </div>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input 
+                          type="checkbox"
+                          checked={appSettings?.aiAnalysisEnabled !== false}
+                          onChange={(e) => updateAppSettings({ aiAnalysisEnabled: e.target.checked })}
+                          className="sr-only peer"
+                        />
+                        <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-purple-600"></div>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="p-2 border-t border-gray-100 dark:border-gray-700">
+                    <p className="text-[10px] text-left px-3 text-gray-400 dark:text-gray-500 font-medium tracking-wider">
+                      ©SGCC OFFICIAL
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </header>
