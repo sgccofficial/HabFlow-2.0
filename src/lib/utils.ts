@@ -56,39 +56,84 @@ export function getHabitTargetValue(habit: Habit): number {
   return targetValue;
 }
 
+export function getHabitScheduleForDate(habit: Habit, dateStr: string): {
+  targetDays: number[];
+  targetValue: number;
+  dailyCompletions: number;
+  durationGoal: number;
+  reminderTime: string;
+} {
+  if (habit.scheduleHistory && habit.scheduleHistory.length > 0) {
+    const sorted = [...habit.scheduleHistory].sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom));
+    let matchedEntry = sorted[0];
+    for (const entry of sorted) {
+      if (entry.effectiveFrom <= dateStr) {
+        matchedEntry = entry;
+      } else {
+        break;
+      }
+    }
+    if (matchedEntry) {
+      const targetDays = matchedEntry.targetDays && matchedEntry.targetDays.length > 0 
+        ? matchedEntry.targetDays 
+        : [0, 1, 2, 3, 4, 5, 6];
+      const dailyCompletions = matchedEntry.dailyCompletions ?? 1;
+      const durationGoal = matchedEntry.durationGoal ?? 0;
+      let targetValue = 1;
+      if (durationGoal > 0) {
+        targetValue = durationGoal * (dailyCompletions > 0 ? dailyCompletions : 1);
+      } else if (dailyCompletions > 0) {
+        targetValue = dailyCompletions;
+      }
+      return {
+        targetDays,
+        targetValue,
+        dailyCompletions,
+        durationGoal,
+        reminderTime: matchedEntry.reminderTime ?? habit.reminderTime ?? ''
+      };
+    }
+  }
+
+  const targetDays = habit.targetDays && habit.targetDays.length > 0 
+    ? habit.targetDays 
+    : [0, 1, 2, 3, 4, 5, 6];
+  const targetValue = getHabitTargetValue(habit);
+  return {
+    targetDays,
+    targetValue,
+    dailyCompletions: habit.dailyCompletions ?? 1,
+    durationGoal: habit.durationGoal ?? 0,
+    reminderTime: habit.reminderTime ?? ''
+  };
+}
+
 export function getHabitProgressValue(habit: Habit, dStr: string): number {
-  return habit.progress?.[dStr] ?? (habit.dates.includes(dStr) ? getHabitTargetValue(habit) : 0);
+  return habit.progress?.[dStr] ?? (habit.dates.includes(dStr) ? getHabitScheduleForDate(habit, dStr).targetValue : 0);
 }
 
 export function checkDayStatus(habit: Habit, dStr: string): 'completed' | 'partial' | 'none' {
   if (habit.dates.includes(dStr)) return 'completed';
   
-  const todayStr = formatDate(new Date());
-  if (dStr !== todayStr) {
-    const val = habit.progress?.[dStr] || 0;
-    return val > 0 ? 'partial' : 'none';
-  }
+  const schedule = getHabitScheduleForDate(habit, dStr);
+  const targetValue = schedule.targetValue;
+  const val = habit.progress?.[dStr] || 0;
 
-  const val = getHabitProgressValue(habit, dStr);
   if (val === 0) return 'none';
-  const targetValue = getHabitTargetValue(habit);
-  
   return val >= targetValue ? 'completed' : 'partial';
 }
 
 export function calculateStreak(habit: Habit, endDateStr?: string): number {
-  const { created, targetDays: savedTargetDays, legacyStreak, legacyStreakDate } = habit;
-  const targetDays = savedTargetDays || [0, 1, 2, 3, 4, 5, 6];
-  if (targetDays.length === 0) return 0;
+  const { created, legacyStreak, legacyStreakDate } = habit;
+  const todayStr = formatDate(new Date());
 
   let streak = 0;
   let current = endDateStr ? new Date(endDateStr + 'T12:00:00') : new Date();
-  const todayStr = formatDate(new Date());
 
   while (true) {
     const dStr = formatDate(current);
 
-    if (!endDateStr && legacyStreakDate && dStr === legacyStreakDate) {
+    if (!endDateStr && legacyStreakDate && dStr === legacyStreakDate && (!habit.scheduleHistory || habit.scheduleHistory.length <= 1)) {
       streak += (legacyStreak || 0);
       break;
     }
@@ -96,6 +141,8 @@ export function calculateStreak(habit: Habit, endDateStr?: string): number {
     if (!created || dStr < created) break;
 
     const isFrozen = isHabitDayFrozen(habit, dStr, todayStr);
+    const schedule = getHabitScheduleForDate(habit, dStr);
+    const targetDays = schedule.targetDays;
     const dayOfWeek = current.getDay();
     const isTargetDay = targetDays.includes(dayOfWeek);
     const status = checkDayStatus(habit, dStr);
@@ -119,36 +166,16 @@ export function calculateStreak(habit: Habit, endDateStr?: string): number {
 }
 
 export function calculateLongestStreak(habit: Habit, endDateStr?: string): number {
-  const { created, targetDays: savedTargetDays, legacyLongestStreak } = habit;
-  const targetDays = savedTargetDays || [0, 1, 2, 3, 4, 5, 6];
-  if (targetDays.length === 0) return 0;
+  const { created, legacyLongestStreak } = habit;
+  if (!created) return 0;
 
   let longestStreak = legacyLongestStreak || 0;
   let tempStreak = 0;
   
-  // If we have an end date, calculate only up to that date.
-  // Otherwise, calculate up to today.
   const limitDate = endDateStr ? new Date(endDateStr + 'T12:00:00') : new Date();
   const todayStr = formatDate(new Date());
-  
-  // Start from either the legacy streak date, or the creation date
-  // Since we don't know the exact history before legacyLongestStreak was saved,
-  // we just start checking from the legacyStreakDate onwards to continue the tempStreak?
-  // Actually, wait, if legacyLongestStreak is present, we shouldn't re-calculate past days before legacyStreakDate
-  // because we don't have the history of limit changes!
-  // BUT we don't know the tempStreak at legacyStreakDate! We only stored the *longest* streak!
-  // Wait, legacyStreak is the CURRENT streak at legacyStreakDate! So we DO know tempStreak at legacyStreakDate!
-  
-  const startDate = (habit.legacyStreakDate && !endDateStr) 
-    ? new Date(habit.legacyStreakDate + 'T12:00:00') 
-    : new Date(created + 'T12:00:00');
-    
-  if (habit.legacyStreakDate && !endDateStr) {
-    tempStreak = habit.legacyStreak || 0;
-    // We already counted legacyStreakDate in the legacyStreak, so start from the day AFTER legacyStreakDate
-    startDate.setDate(startDate.getDate() + 1);
-  }
 
+  const startDate = new Date(created + 'T12:00:00');
   const daysToCalculate = Math.max(0, Math.floor((limitDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1);
   
   for (let i = 0; i < daysToCalculate; i++) {
@@ -161,6 +188,8 @@ export function calculateLongestStreak(habit: Habit, endDateStr?: string): numbe
     const isFrozen = isHabitDayFrozen(habit, dStr, todayStr);
     
     if (!isFrozen) {
+      const schedule = getHabitScheduleForDate(habit, dStr);
+      const targetDays = schedule.targetDays;
       const dayOfWeek = d.getDay();
       const isTarget = targetDays.includes(dayOfWeek);
       const status = checkDayStatus(habit, dStr);
@@ -169,10 +198,13 @@ export function calculateLongestStreak(habit: Habit, endDateStr?: string): numbe
         tempStreak++;
         longestStreak = Math.max(longestStreak, tempStreak);
       } else if (isTarget) {
-        tempStreak = 0;
+        if (dStr !== todayStr) {
+          tempStreak = 0;
+        }
       }
     }
   }
+
   return longestStreak;
 }
 
@@ -184,21 +216,27 @@ export interface HabitConsistencyResult {
 
 /**
  * Calculates the consistency percentage for an individual habit.
- * - Evaluates scheduled target days from creation to today.
+ * - Evaluates scheduled target days from creation to today according to the schedule at the time.
  * - Properly excludes frozen days/periods.
  * - Today is considered "in progress" and does not penalize the user if not yet completed.
  * - Bonus completions on non-target days count towards consistency without exceeding 100%.
+ * - If task is new, completely frozen, or has 0 current & longest streak, consistency is 0%.
  */
 export function calculateHabitConsistency(habit: Habit, asOfDate: Date = new Date()): HabitConsistencyResult {
   const todayStr = formatDate(asOfDate);
   const createdStr = habit.created || todayStr;
   if (createdStr > todayStr) {
-    return { consistencyRate: 100, scheduledDays: 0, completedDays: 0 };
+    return { consistencyRate: 0, scheduledDays: 0, completedDays: 0 };
   }
 
-  const targetDays = habit.targetDays && habit.targetDays.length > 0 
-    ? habit.targetDays 
-    : [0, 1, 2, 3, 4, 5, 6];
+  const currentStreak = calculateStreak(habit, todayStr);
+  const longestStreak = calculateLongestStreak(habit, todayStr);
+  const hasAnyCompletions = habit.dates && habit.dates.length > 0;
+
+  // New task or completely frozen task or no completions: 0% consistency
+  if (currentStreak === 0 && longestStreak === 0 && !hasAnyCompletions) {
+    return { consistencyRate: 0, scheduledDays: 0, completedDays: 0 };
+  }
 
   let scheduledDays = 0;
   let completedDays = 0;
@@ -210,6 +248,8 @@ export function calculateHabitConsistency(habit: Habit, asOfDate: Date = new Dat
   while (cur <= endDate) {
     const dStr = formatDate(cur);
     const dayOfWeek = cur.getDay();
+    const schedule = getHabitScheduleForDate(habit, dStr);
+    const targetDays = schedule.targetDays;
     const isTarget = targetDays.includes(dayOfWeek);
     const isFrozen = isHabitDayFrozen(habit, dStr, todayStr);
     const isCompleted = checkDayStatus(habit, dStr) === 'completed';
@@ -244,7 +284,7 @@ export function calculateHabitConsistency(habit: Habit, asOfDate: Date = new Dat
   }
 
   if (scheduledDays === 0) {
-    return { consistencyRate: 100, scheduledDays: 0, completedDays: 0 };
+    return { consistencyRate: 0, scheduledDays: 0, completedDays: 0 };
   }
 
   const totalCompleted = Math.min(scheduledDays, completedDays + bonusCompletions);
@@ -275,7 +315,7 @@ export function calculateOverallStats(habits: Habit[], asOfDate: Date = new Date
       }
       cur.setDate(cur.getDate() + 1);
     }
-    if (h.legacyStreak && h.legacyStreakDate) {
+    if (h.legacyStreak && h.legacyStreakDate && (!h.scheduleHistory || h.scheduleHistory.length <= 1)) {
       validComps += Math.max(0, h.legacyStreak - 1);
     }
     allTimeCompletions += validComps;
@@ -290,7 +330,7 @@ export function calculateOverallStats(habits: Habit[], asOfDate: Date = new Date
 
   const consistencyRate = totalPossible > 0 
     ? Math.min(100, Math.max(0, Math.round((totalCompletions / totalPossible) * 100))) 
-    : 100;
+    : 0;
 
   return {
     totalCompletions,

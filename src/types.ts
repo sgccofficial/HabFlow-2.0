@@ -1,3 +1,13 @@
+export interface HabitScheduleEntry {
+  effectiveFrom: string; // ISO format "YYYY-MM-DD"
+  targetDays: number[]; // 0=Sun, 1=Mon... 6=Sat
+  dailyCompletions?: number;
+  durationGoal?: number; // in seconds
+  goalType?: 'daily' | 'weekly' | 'duration';
+  goalValue?: number;
+  reminderTime?: string;
+}
+
 export interface Habit {
   id: string;
   name: string;
@@ -17,6 +27,7 @@ export interface Habit {
   isFrozen?: boolean;
   frozenSince?: string;
   frozenDates?: string[]; // ISO format "YYYY-MM-DD"
+  scheduleHistory?: HabitScheduleEntry[];
   legacyStreak?: number;
   legacyStreakDate?: string;
   legacyLongestStreak?: number;

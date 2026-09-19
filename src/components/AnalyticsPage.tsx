@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useAppContext } from '../store/AppContext';
 import { format, subDays, eachDayOfInterval, parseISO, getDay, isSameDay, startOfWeek, endOfWeek, isAfter, isBefore, isToday } from 'date-fns';
-import { calculateStreak, calculateLongestStreak, cn, isHabitDayFrozen, formatDate, getHabitTargetValue, getHabitProgressValue, checkDayStatus, calculateHabitConsistency, calculateOverallStats } from '../lib/utils';
+import { calculateStreak, calculateLongestStreak, cn, isHabitDayFrozen, formatDate, getHabitTargetValue, getHabitProgressValue, checkDayStatus, calculateHabitConsistency, calculateOverallStats, getHabitScheduleForDate } from '../lib/utils';
 import { TrendingUp, Award, CalendarDays, Activity, Share2, CheckCircle2, ChevronUp, ChevronDown } from 'lucide-react';
 import { ShareMilestoneModal } from './ShareMilestoneModal';
 import { getIcon } from './HabitCard';
@@ -153,7 +153,12 @@ export function AnalyticsPage() {
     if (!selectedHabit) return null;
     const currentStreak = calculateStreak(selectedHabit);
     const longestStreak = calculateLongestStreak(selectedHabit);
-    const { consistencyRate } = calculateHabitConsistency(selectedHabit, today);
+    let { consistencyRate } = calculateHabitConsistency(selectedHabit, today);
+
+    // If new task or completely frozen or 0 current and 0 longest streak:
+    if (currentStreak === 0 && longestStreak === 0 && (!selectedHabit.dates || selectedHabit.dates.length === 0)) {
+      consistencyRate = 0;
+    }
 
     // Activity over last 30 days
     const activityOverTime = last30Days.map(date => {
@@ -256,7 +261,8 @@ export function AnalyticsPage() {
               const isPartial = status === 'partial';
               const isNotCreated = dStr < specificHabit.created;
               const isFrozen = isHabitDayFrozen(specificHabit, dStr, todayStr);
-              const targetDays = specificHabit.targetDays || [0, 1, 2, 3, 4, 5, 6];
+              const schedule = getHabitScheduleForDate(specificHabit, dStr);
+              const targetDays = schedule.targetDays;
               const isTargetDay = targetDays.includes(date.getDay());
               
               if (isFrozen) {
@@ -267,7 +273,7 @@ export function AnalyticsPage() {
                 tooltip += ' - Completed';
               } else if (isPartial) {
                 const pVal = getHabitProgressValue(specificHabit, dStr);
-                const tVal = getHabitTargetValue(specificHabit);
+                const tVal = schedule.targetValue;
                 colorClass = 'bg-yellow-400 dark:bg-yellow-500 shadow-sm';
                 tooltip += ` - Partial (${pVal}/${tVal})`;
               } else if (!isTargetDay) {
@@ -300,7 +306,8 @@ export function AnalyticsPage() {
                     if (isHabitDayFrozen(h, dStr, todayStr)) {
                       frozenCount++;
                     } else {
-                      const tDays = h.targetDays || [0, 1, 2, 3, 4, 5, 6];
+                      const schedule = getHabitScheduleForDate(h, dStr);
+                      const tDays = schedule.targetDays;
                       const isTDay = tDays.includes(date.getDay());
                       const status = checkDayStatus(h, dStr);
                       const isDone = status === 'completed';

@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { Habit } from '../types';
+import { Habit, HabitScheduleEntry } from '../types';
 import { useAppContext } from '../store/AppContext';
 import { X, Trash2 } from 'lucide-react';
 import { getIcon } from './HabitCard';
-import { cn, calculateStreak, calculateLongestStreak, formatDate } from '../lib/utils';
+import { cn, calculateStreak, calculateLongestStreak, formatDate, getHabitScheduleForDate } from '../lib/utils';
 
 const COLORS = [
   '#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16', '#22c55e', '#10b981',
@@ -65,10 +65,55 @@ export function EditHabitModal({ habit, onClose }: EditModalProps) {
       fallbackGoalValue = finalDailyCompletions;
     }
     
-    // We compute the streak up to yesterday, so that past limit changes do not affect past days
+    const todayStr = formatDate(new Date());
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
     const yesterdayStr = formatDate(yesterday);
+
+    const prevSchedule = getHabitScheduleForDate(habit, yesterdayStr);
+
+    const targetDaysChanged = finalTargetDays.length !== prevSchedule.targetDays.length ||
+      finalTargetDays.some(d => !prevSchedule.targetDays.includes(d));
+    const dailyChanged = finalDailyCompletions !== prevSchedule.dailyCompletions;
+    const durationChanged = finalDurationGoal !== prevSchedule.durationGoal;
+    const reminderChanged = reminderTime !== prevSchedule.reminderTime;
+
+    const isRotationChanged = targetDaysChanged || dailyChanged || durationChanged || reminderChanged;
+
+    let updatedHistory: HabitScheduleEntry[] = habit.scheduleHistory ? [...habit.scheduleHistory] : [];
+    if (updatedHistory.length === 0) {
+      updatedHistory.push({
+        effectiveFrom: habit.created || yesterdayStr,
+        targetDays: habit.targetDays || [0, 1, 2, 3, 4, 5, 6],
+        dailyCompletions: habit.dailyCompletions ?? 1,
+        durationGoal: habit.durationGoal ?? 0,
+        goalType: habit.goalType,
+        goalValue: habit.goalValue,
+        reminderTime: habit.reminderTime
+      });
+    }
+
+    if (isRotationChanged) {
+      const existingTodayIndex = updatedHistory.findIndex(entry => entry.effectiveFrom === todayStr);
+      const newEntry: HabitScheduleEntry = {
+        effectiveFrom: todayStr,
+        targetDays: finalTargetDays,
+        dailyCompletions: finalDailyCompletions,
+        durationGoal: finalDurationGoal,
+        goalType: fallbackGoalType,
+        goalValue: fallbackGoalValue,
+        reminderTime
+      };
+
+      if (existingTodayIndex >= 0) {
+        updatedHistory[existingTodayIndex] = newEntry;
+      } else {
+        updatedHistory.push(newEntry);
+      }
+      updatedHistory.sort((a, b) => a.effectiveFrom.localeCompare(b.effectiveFrom));
+    }
+
+    // We compute the streak up to yesterday, so that past limit changes do not affect past days
     const streakUpToYesterday = calculateStreak(habit, yesterdayStr);
     const longestStreakUpToYesterday = calculateLongestStreak(habit, yesterdayStr);
 
@@ -84,6 +129,7 @@ export function EditHabitModal({ habit, onClose }: EditModalProps) {
       targetDays: finalTargetDays,
       dailyCompletions: finalDailyCompletions,
       durationGoal: finalDurationGoal,
+      scheduleHistory: updatedHistory,
       legacyStreak: streakUpToYesterday,
       legacyStreakDate: yesterdayStr,
       legacyLongestStreak: longestStreakUpToYesterday

@@ -717,11 +717,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const addHabit = (habitData: Omit<Habit, 'id' | 'created' | 'dates'>) => {
     lastLocalEditTime.current = Date.now();
+    const todayStr = formatDate(new Date());
     const newHabit: Habit = {
       ...habitData,
       id: crypto.randomUUID(),
-      created: formatDate(new Date()),
+      created: todayStr,
       dates: [],
+      scheduleHistory: [{
+        effectiveFrom: todayStr,
+        targetDays: habitData.targetDays || [0, 1, 2, 3, 4, 5, 6],
+        dailyCompletions: habitData.dailyCompletions ?? 1,
+        durationGoal: habitData.durationGoal ?? 0,
+        goalType: habitData.goalType,
+        goalValue: habitData.goalValue,
+        reminderTime: habitData.reminderTime
+      }]
     };
     setHabits(prev => [...prev, newHabit]);
   };

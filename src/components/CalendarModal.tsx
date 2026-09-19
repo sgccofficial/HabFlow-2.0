@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Habit } from '../types';
 import { useAppContext } from '../store/AppContext';
 import { X, ChevronLeft, ChevronRight, Timer, BookOpen, PieChart } from 'lucide-react';
-import { formatDate, calculateStreak, cn, isHabitDayFrozen, checkDayStatus } from '../lib/utils';
+import { formatDate, calculateStreak, cn, isHabitDayFrozen, checkDayStatus, getHabitScheduleForDate } from '../lib/utils';
 import { startOfMonth, endOfMonth, eachDayOfInterval, format, isSameMonth, addMonths, subMonths, isAfter, isBefore } from 'date-fns';
 
 interface CalendarModalProps {
@@ -113,7 +113,8 @@ export function CalendarModal({ habit, onClose }: CalendarModalProps) {
                 
                 } else if (!isFuture && !isBeforeCreated) {
                   const dayOfWeek = day.getDay();
-                  const isTargetDay = habit.targetDays ? habit.targetDays.includes(dayOfWeek) : true;
+                  const schedule = getHabitScheduleForDate(habit, dStr);
+                  const isTargetDay = schedule.targetDays.includes(dayOfWeek);
                   if (isTargetDay) {
                     if (dStr === todayStr) {
                       bgColor = "bg-yellow-100 dark:bg-yellow-900/40";
