@@ -11,7 +11,7 @@ import { TimerPage } from './components/TimerPage';
 import { JournalPage } from './components/JournalPage';
 import { AnalyticsPage } from './components/AnalyticsPage';
 import { formatDate, cn } from './lib/utils';
-import { Moon, Sun, Palette, X, User, LogOut, Check, Camera, Mail, Trash2, AtSign, Loader2, Sparkles } from 'lucide-react';
+import { Moon, Sun, Palette, X, User, LogOut, Check, Camera, Mail, Trash2, AtSign, Loader2 } from 'lucide-react';
 import { BACKGROUND_COLORS, BACKGROUND_TEXTURES } from './lib/constants';
 import { ImageCropper } from './components/ImageCropper';
 import { Eye, EyeOff } from 'lucide-react';
@@ -21,11 +21,10 @@ function AppContent() {
   const checkedReminders = useRef<Set<string>>(new Set());
   const [showGlobalSettings, setShowGlobalSettings] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [modalState, setModalState] = useState<{type: 'name' | 'real_name' | 'photo_options' | 'delete' | 'signout' | 'success' | 'auth_options' | 'create_account' | 'sign_in' | 'ai_analysis' | null, input: string, nameInput?: string, password?: string, profilePic?: string}>({type: null, input: '', nameInput: '', password: '', profilePic: ''});
+  const [modalState, setModalState] = useState<{type: 'name' | 'real_name' | 'photo_options' | 'delete' | 'signout' | 'success' | 'auth_options' | 'create_account' | 'sign_in' | null, input: string, nameInput?: string, password?: string, profilePic?: string}>({type: null, input: '', nameInput: '', password: '', profilePic: ''});
   const [showPassword, setShowPassword] = useState(false);
   const [modalError, setModalError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isAiToggling, setIsAiToggling] = useState(false);
   const [shareData, setShareData] = useState<{title: string, text: string, url: string} | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -321,26 +320,6 @@ function AppContent() {
     setModalState({ type: 'signout', input: '' });
   };
 
-  const handleToggleAiAnalysis = async (enable: boolean) => {
-    setIsAiToggling(true);
-    setModalError('');
-    try {
-      await updateAppSettings({ aiAnalysisEnabled: enable });
-      await new Promise(r => setTimeout(r, 450));
-      setModalState({
-        type: 'success',
-        input: enable ? 'AI Analysis is turned on.' : 'AI Analysis is turned off.'
-      });
-      setTimeout(() => {
-        setModalState(prev => prev.type === 'success' ? { type: null, input: '' } : prev);
-      }, 1500);
-    } catch (err: any) {
-      setModalError("Action failed: " + (err?.message || "Failed to update setting"));
-    } finally {
-      setIsAiToggling(false);
-    }
-  };
-
   useEffect(() => {
     const metaThemeColor = document.querySelector('meta[name="theme-color"]');
     if (metaThemeColor) {
@@ -514,15 +493,6 @@ function AppContent() {
                     >
                       <Camera className="w-4 h-4" /> Change Profile Picture
                     </button>
-                    <button 
-                      onClick={() => {
-                        setShowProfileMenu(false);
-                        setModalState({ type: 'ai_analysis', input: '' });
-                      }}
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors flex items-center gap-2"
-                    >
-                      <Sparkles className="w-4 h-4" /> AI Analysis
-                    </button>
                   </div>
                   <div className="h-px bg-gray-100 dark:bg-gray-700 w-full" />
                   <div className="p-2 space-y-1">
@@ -548,56 +518,14 @@ function AppContent() {
               )}
             </div>
           ) : (
-            <div className="relative pointer-events-auto flex items-center">
-              <button 
-                onClick={toggleProfileMenu}
-                className="w-10 h-10 rounded-full overflow-hidden border border-gray-200 dark:border-gray-800 shadow flex items-center justify-center bg-white/80 dark:bg-gray-900/80 text-gray-600 dark:text-gray-300 hover:text-indigo-600 transition"
-                title="Profile Menu & Settings"
-              >
-                <User className="w-5 h-5" />
-              </button>
-
-              {showProfileMenu && (
-                <div onClick={(e) => e.stopPropagation()} className="absolute top-12 right-0 min-w-[16rem] w-max max-w-[90vw] sm:max-w-sm bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden z-[70] text-gray-900 dark:text-white">
-                  <div className="p-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm flex shrink-0 items-center justify-center bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400">
-                      <User className="w-5 h-5" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold">Local Account</p>
-                      <p className="text-xs text-gray-500">Stored on this device</p>
-                    </div>
-                  </div>
-
-                  <div className="p-2 space-y-1">
-                    <button 
-                      onClick={() => {
-                        setShowProfileMenu(false);
-                        setModalState({ type: 'auth_options', input: '' });
-                      }}
-                      className="w-full text-left px-3 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors flex items-center justify-center gap-2 shadow-xs"
-                    >
-                      <User className="w-4 h-4" /> Sign In / Create Account
-                    </button>
-                    <button 
-                      onClick={() => {
-                        setShowProfileMenu(false);
-                        setModalState({ type: 'ai_analysis', input: '' });
-                      }}
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors flex items-center gap-2"
-                    >
-                      <Sparkles className="w-4 h-4" /> AI Analysis
-                    </button>
-                  </div>
-
-                  <div className="p-2 border-t border-gray-100 dark:border-gray-700">
-                    <p className="text-[10px] text-left px-3 text-gray-400 dark:text-gray-500 font-medium tracking-wider">
-                      ©SGCC OFFICIAL
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
+            <button 
+              onClick={() => {
+                setModalState({ type: 'auth_options', input: '' });
+              }}
+              className="pointer-events-auto flex items-center gap-2 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full shadow transition-colors text-sm font-medium h-10"
+            >
+              <User className="w-4 h-4" /> Sign In
+            </button>
           )}
         </div>
       </header>
@@ -709,16 +637,10 @@ function AppContent() {
 
       {/* Custom Modal */}
       {modalState.type && (
-        <div 
-          onClick={() => !isSubmitting && !isAiToggling && setModalState({ type: null, input: '' })}
-          className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300"
-        >
+        <div className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300">
           <div onClick={(e) => e.stopPropagation()} className="bg-white dark:bg-gray-800 rounded-3xl p-6 shadow-2xl w-full max-w-sm border border-gray-200 dark:border-gray-700 animate-in zoom-in-95 duration-300">
             {modalState.type === 'success' ? (
-              <div 
-                onClick={() => setModalState({ type: null, input: '' })}
-                className="flex flex-col items-center py-4 cursor-pointer"
-              >
+              <div className="flex flex-col items-center py-4">
                 <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-4">
                   <Check className="w-8 h-8" />
                 </div>
@@ -735,7 +657,6 @@ function AppContent() {
                   {modalState.type === 'auth_options' && 'Sign In'}
                   {modalState.type === 'create_account' && 'Create Account'}
                   {modalState.type === 'sign_in' && 'Sign In'}
-                  {modalState.type === 'ai_analysis' && 'AI Analysis'}
                 </h3>
                 
                 {modalState.type === 'auth_options' && (
@@ -866,48 +787,6 @@ function AppContent() {
               </div>
             )}
             
-            {modalState.type === 'ai_analysis' && (
-              <div className="flex flex-col gap-2.5 pt-1">
-                {modalError && (
-                  <p className="text-xs text-red-500 font-medium mb-1">{modalError}</p>
-                )}
-
-                {appSettings?.aiAnalysisEnabled !== false ? (
-                  <button
-                    disabled={isAiToggling}
-                    onClick={() => handleToggleAiAnalysis(false)}
-                    className="w-full px-4 py-2.5 bg-red-600 hover:bg-red-700 disabled:opacity-75 text-white font-medium rounded-xl transition flex items-center justify-center text-sm min-h-[42px]"
-                  >
-                    {isAiToggling ? (
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                    ) : (
-                      'Turn Off'
-                    )}
-                  </button>
-                ) : (
-                  <button
-                    disabled={isAiToggling}
-                    onClick={() => handleToggleAiAnalysis(true)}
-                    className="w-full px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-75 text-white font-medium rounded-xl transition flex items-center justify-center text-sm min-h-[42px]"
-                  >
-                    {isAiToggling ? (
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                    ) : (
-                      'Turn On'
-                    )}
-                  </button>
-                )}
-
-                <button
-                  disabled={isAiToggling}
-                  onClick={() => setModalState({ type: null, input: '' })}
-                  className="w-full px-4 py-2 text-gray-600 dark:text-gray-300 font-medium rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition text-center text-sm disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-              </div>
-            )}
-            
             {modalState.type === 'delete' && (
               <p className="text-sm text-red-600 dark:text-red-400 mb-4">
                 Are you sure you want to delete your account? This action cannot be undone and you will lose all your data.
@@ -920,7 +799,7 @@ function AppContent() {
               </p>
             )}
 
-            {modalState.type !== 'photo_options' && modalState.type !== 'ai_analysis' && (
+            {modalState.type !== 'photo_options' && (
               <div className="flex gap-2 justify-end">
                 <button
                   onClick={() => {

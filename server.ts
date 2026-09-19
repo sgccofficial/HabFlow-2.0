@@ -7,24 +7,6 @@ import crypto from 'crypto';
 import { initializeApp } from 'firebase/app';
 import { deleteDoc } from 'firebase/firestore';
 import { getFirestore, doc, getDoc, setDoc, getDocs, collection } from 'firebase/firestore';
-import { GoogleGenAI } from "@google/genai";
-
-let genAIClient: GoogleGenAI | null = null;
-function getGenAI(): GoogleGenAI | null {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) return null;
-  if (!genAIClient) {
-    genAIClient = new GoogleGenAI({
-      apiKey,
-      httpOptions: {
-        headers: {
-          'User-Agent': 'aistudio-build',
-        }
-      }
-    });
-  }
-  return genAIClient;
-}
 
 const configStr = fs.readFileSync(path.join(process.cwd(), 'src', 'lib', 'firebase-config.json'), 'utf-8');
 const firebaseConfig = JSON.parse(configStr);
@@ -97,86 +79,6 @@ app.post('/api/sync-tasks', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to sync tasks' });
-  }
-});
-
-// AI Analytics Endpoint
-app.post('/api/ai/analytics', async (req, res) => {
-  try {
-    const ai = getGenAI();
-    if (!ai) {
-      return res.json({ available: false, reason: 'NO_API_KEY' });
-    }
-
-    const { habitsData, timeOfDayData, statsOverview } = req.body;
-
-    const prompt = `You are HabitFlow AI, an elite behavioral scientist and habit optimization coach.
-Analyze the user's habit tracking metrics below and return a structured JSON assessment.
-
-User Data:
-${JSON.stringify({ habitsData, timeOfDayData, statsOverview }, null, 2)}
-
-Provide clear, encouraging, evidence-based, and actionable insights strictly conforming to this JSON format:
-{
-  "executiveSummary": "A concise 2-sentence executive summary of their habit consistency and overall trajectory.",
-  "mostConsistentAnalysis": {
-    "title": "Most Consistent Habits",
-    "observation": "Detailed praise and behavioral breakdown of why their top habits succeed.",
-    "topHabitNames": ["Habit 1", "Habit 2"]
-  },
-  "repeatedlyMissedAnalysis": {
-    "title": "Repeatedly Missed Habits",
-    "observation": "Empathetic analysis of why certain habits are slipping, identifying specific friction patterns.",
-    "missedHabitNames": ["Habit A"],
-    "actionableFix": "A clear, low-friction micro-habit tweak or schedule adjustment."
-  },
-  "timeOfDayInsight": {
-    "title": "Circadian Habit Flow",
-    "observation": "Insight into how their completions distribute across morning, afternoon, evening, and night, and when their peak willpower window is.",
-    "optimalWindow": "e.g., Morning (7:00 AM - 10:00 AM)"
-  },
-  "consistencyTrends30vs90": {
-    "title": "30-Day vs 90-Day Trajectory",
-    "observation": "Evaluation of how their consistency over the last 30 days compares against their longer-term 90-day baseline.",
-    "direction": "improving"
-  },
-  "improvingHabitsInsight": {
-    "title": "Accelerating Habits",
-    "observation": "Which habits are showing upward momentum and breakout consistency.",
-    "habits": ["Habit 1"]
-  },
-  "stagnatingHabitsInsight": {
-    "title": "Stagnating Habits",
-    "observation": "Which habits are plateauing, dormant, or stagnating, and gentle steps to revive them.",
-    "habits": ["Habit 2"]
-  },
-  "smartRecommendations": [
-    "Targeted advice point 1",
-    "Targeted advice point 2",
-    "Targeted advice point 3"
-  ],
-  "motivationalTakeaway": "A concise, motivating science-backed psychological reflection."
-}`;
-
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-        temperature: 0.7
-      }
-    });
-
-    const text = response.text;
-    if (!text) {
-      return res.status(500).json({ error: 'Empty response from Gemini' });
-    }
-
-    const parsed = JSON.parse(text);
-    return res.json({ available: true, data: parsed });
-  } catch (error: any) {
-    console.error('Error generating AI habit analytics:', error);
-    return res.status(500).json({ error: error.message || 'AI generation failed' });
   }
 });
 
