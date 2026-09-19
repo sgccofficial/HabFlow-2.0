@@ -187,8 +187,21 @@ export function AnalyticsPage() {
     });
   }, [habits, todayStr, todayDayOfWeek]);
 
-  const builtHabits = useMemo(() => todayScheduledHabits.filter(h => checkDayStatus(h, todayStr) === "completed"), [todayScheduledHabits, todayStr]);
-  const underConstructionHabits = useMemo(() => todayScheduledHabits.filter(h => checkDayStatus(h, todayStr) !== "completed"), [todayScheduledHabits, todayStr]);
+  const builtHabits = useMemo(() => {
+    return habits.filter(h => {
+      if (isHabitDayFrozen(h, todayStr, todayStr)) return false;
+      return checkDayStatus(h, todayStr) === "completed";
+    });
+  }, [habits, todayStr]);
+
+  const underConstructionHabits = useMemo(() => {
+    return habits.filter(h => {
+      if (isHabitDayFrozen(h, todayStr, todayStr)) return false;
+      const targetDays = h.targetDays || [0, 1, 2, 3, 4, 5, 6];
+      if (!targetDays.includes(todayDayOfWeek)) return false;
+      return checkDayStatus(h, todayStr) !== "completed";
+    });
+  }, [habits, todayStr, todayDayOfWeek]);
 
   const renderHabitList = (habitList: typeof habits, showCheck: boolean) => (
     <div className="space-y-2">
@@ -442,7 +455,7 @@ export function AnalyticsPage() {
                       {renderHabitList(underConstructionHabits, false)}
                     </div>
                   )}
-                  {todayScheduledHabits.length === 0 && (
+                  {todayScheduledHabits.length === 0 && builtHabits.length === 0 && (
                     <div className="py-6 text-center text-sm text-gray-400 dark:text-gray-500">
                       No tasks scheduled for today
                     </div>

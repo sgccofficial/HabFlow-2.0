@@ -283,14 +283,20 @@ export function calculateHabitConsistency(habit: Habit, asOfDate: Date = new Dat
     cur.setDate(cur.getDate() + 1);
   }
 
+  const totalCompletedCount = completedDays + bonusCompletions;
+
   if (scheduledDays === 0) {
+    if (bonusCompletions > 0) {
+      return { consistencyRate: 100, scheduledDays: bonusCompletions, completedDays: bonusCompletions };
+    }
     return { consistencyRate: 0, scheduledDays: 0, completedDays: 0 };
   }
 
-  const totalCompleted = Math.min(scheduledDays, completedDays + bonusCompletions);
+  const effectiveScheduledDays = Math.max(scheduledDays, totalCompletedCount);
+  const totalCompleted = Math.min(effectiveScheduledDays, totalCompletedCount);
   const consistencyRate = Math.min(100, Math.max(0, Math.round((totalCompleted / scheduledDays) * 100)));
 
-  return { consistencyRate, scheduledDays, completedDays: totalCompleted };
+  return { consistencyRate, scheduledDays: effectiveScheduledDays, completedDays: totalCompleted };
 }
 
 /**
