@@ -25,21 +25,37 @@ export function parseTime(val: string) {
   return isNaN(totalSecs) ? 0 : totalSecs;
 }
 
-let hasLoadedOnce = false;
-
 export function TimerPage() {
-  const { habits, activeHabitId, setActiveHabitId, toggleHabitDate, updateHabitProgress, setServerTimer, clearServerTimer } = useAppContext();
+  const { 
+    habits, 
+    activeHabitId, 
+    setActiveHabitId, 
+    toggleHabitDate, 
+    updateHabitProgress, 
+    setServerTimer, 
+    clearServerTimer 
+  } = useAppContext();
   
   const [mode, setMode] = useState<'countdown' | 'stopwatch'>('countdown');
   
   // Countdown States
-  const [durationSecs, setDurationSecs] = useState(20 * 60); // 20 min default
+  const [durationSecs, setDurationSecs] = useState(20 * 60); // default 20 mins
   const [remainingSecs, setRemainingSecs] = useState(20 * 60);
   const [isRunning, setIsRunning] = useState(false);
   const [completedModalOpen, setCompletedModalOpen] = useState(false);
   const [inputValue, setInputValue] = useState(formatTime(20 * 60));
-  const timerRef = useRef<number | null>(null);
-  const previousRemainingSecsRef = useRef(20 * 60);
+  
+  // High-precision clock refs
+  const targetEndTimeRef = useRef<number | null>(null);
+  const durationSecsRef = useRef<number>(20 * 60);
+  const remainingSecsRef = useRef<number>(20 * 60);
+  const isRunningRef = useRef<boolean>(false);
+  const lastLoggedSecsRef = useRef<number>(0);
+
+  // Background ticker and wake lock refs
+  const workerRef = useRef<Worker | null>(null);
+  const fallbackIntervalRef = useRef<number | null>(null);
+  const wakeLockRef = useRef<any>(null);
   
   // Stopwatch States
   const [swTime, setSwTime] = useState(0); // in ms
@@ -47,11 +63,34 @@ export function TimerPage() {
   const [swIsRunning, setSwIsRunning] = useState(false);
   const swStartTimeRef = useRef<number>(0);
   const swAccumulatedRef = useRef<number>(0);
-  const swIntervalRef = useRef<number | null>(null);
+  const swIsRunningRef = useRef<boolean>(false);
 
+  // Habit selection dropdown
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const prevHabitIdRef = useRef<string | null>(activeHabitId);
 
+  // Keep durationSecsRef in sync
+  useEffect(() => {
+    durationSecsRef.current = durationSecs;
+  }, [durationSecs]);
+
+  // Keep remainingSecsRef in sync
+  useEffect(() => {
+    remainingSecsRef.current = remainingSecs;
+  }, [remainingSecs]);
+
+  // Keep isRunningRef in sync
+  useEffect(() => {
+    isRunningRef.current = isRunning;
+  }, [isRunning]);
+
+  // Keep swIsRunningRef in sync
+  useEffect(() => {
+    swIsRunningRef.current = swIsRunning;
+  }, [swIsRunning]);
+
+  // Handle outside click for habit dropdown
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -64,185 +103,558 @@ export function TimerPage() {
 
   const selectedHabit = habits.find(h => h.id === activeHabitId) || null;
 
-  // Initialize duration from habit goal
+  // Sound and vibration alerts on completion
+  const playAlarm = () => {
+    try {
+      if ('vibrate' in navigator) {
+        navigator.vibrate([300, 150, 300, 150, 500]);
+      }
+    } catch (e) {
+      console.warn("Vibration failed", e);
+    }
+
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioCtx) {
+        const ctx = new AudioCtx();
+        if (ctx.state === 'suspended') {
+          ctx.resume();
+        }
+        const playBeep = (freq: number, start: number, dur: number) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, start);
+          gain.gain.setValueAtTime(0.3, start);
+          gain.gain.exponentialRampToValueAtTime(0.001, start + dur);
+          osc.start(start);
+          osc.stop(start + dur);
+        };
+        const t = ctx.currentTime;
+        playBeep(659.25, t, 0.2);        // E5
+        playBeep(783.99, t + 0.22, 0.2); // G5
+        playBeep(1046.50, t + 0.45, 0.4); // C6
+      }
+    } catch (e) {
+      console.warn("Audio alarm failed", e);
+    }
+  };
+
+  // Screen Wake Lock API to prevent phone screen from locking during timer
+  const requestWakeLock = async () => {
+    try {
+      if ('wakeLock' in navigator && (navigator as any).wakeLock) {
+        if (!wakeLockRef.current) {
+          wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
+          wakeLockRef.current.addEventListener('release', () => {
+            wakeLockRef.current = null;
+          });
+        }
+      }
+    } catch (e) {
+      // Ignore wake lock rejection (e.g. low battery mode)
+    }
+  };
+
+  const releaseWakeLock = async () => {
+    try {
+      if (wakeLockRef.current) {
+        await wakeLockRef.current.release();
+        wakeLockRef.current = null;
+      }
+    } catch (e) {}
+  };
+
+  // Commit elapsed time to habit progress
+  const commitProgress = (elapsedSecs: number) => {
+    if (!selectedHabit || selectedHabit.goalType !== 'duration') return;
+    const diffSecs = elapsedSecs - lastLoggedSecsRef.current;
+    if (diffSecs <= 0) return;
+
+    const todayStr = formatDate(new Date());
+    if (selectedHabit.durationUnit === 'sec') {
+      updateHabitProgress(selectedHabit.id, todayStr, diffSecs);
+      lastLoggedSecsRef.current = elapsedSecs;
+    } else {
+      const oldMins = Math.floor(lastLoggedSecsRef.current / 60);
+      const newMins = Math.floor(elapsedSecs / 60);
+      const diffMins = newMins - oldMins;
+      if (diffMins > 0) {
+        updateHabitProgress(selectedHabit.id, todayStr, diffMins);
+        lastLoggedSecsRef.current = newMins * 60;
+      }
+    }
+  };
+
+  // Save countdown state to localStorage
+  const saveCountdownState = (
+    running: boolean,
+    remSecs: number,
+    durSecs: number,
+    loggedSecs: number,
+    targetEnd: number | null = null
+  ) => {
+    try {
+      const stateObj = {
+        isRunning: running,
+        targetEndTime: targetEnd,
+        remainingSecs: remSecs,
+        durationSecs: durSecs,
+        habitId: activeHabitId,
+        lastLoggedSecs: loggedSecs
+      };
+      localStorage.setItem('habitflow_timerState', JSON.stringify(stateObj));
+    } catch (e) {}
+  };
+
+  // Save stopwatch state to localStorage
+  const saveSwState = (
+    running: boolean,
+    accum: number,
+    start: number,
+    laps: number[]
+  ) => {
+    try {
+      localStorage.setItem('habitflow_swState', JSON.stringify({
+        swIsRunning: running,
+        swAccumulated: accum,
+        swStartTime: start,
+        swLaps: laps
+      }));
+    } catch (e) {}
+  };
+
+  // Trigger completion
+  const handleComplete = () => {
+    setIsRunning(false);
+    isRunningRef.current = false;
+    targetEndTimeRef.current = null;
+    workerRef.current?.postMessage('STOP');
+    releaseWakeLock();
+    clearServerTimer();
+
+    // Ensure all duration progress is committed
+    commitProgress(durationSecsRef.current);
+
+    saveCountdownState(false, 0, durationSecsRef.current, durationSecsRef.current, null);
+    playAlarm();
+    setCompletedModalOpen(true);
+
+    // Send push/notification if available
+    try {
+      if ('Notification' in window && Notification.permission === 'granted') {
+        const habitTitle = selectedHabit ? selectedHabit.name : "Focus Session";
+        const notifTitle = "Time's Up !!";
+        const notifBody = `Great job! Your timer for "${habitTitle}" has finished.`;
+
+        if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+          navigator.serviceWorker.ready.then(reg => {
+            reg.showNotification(notifTitle, {
+              body: notifBody,
+              icon: '/icon-192.png',
+              badge: '/badge.png'
+            });
+          }).catch(() => {
+            new Notification(notifTitle, { body: notifBody, icon: '/icon-192.png' });
+          });
+        }
+      }
+    } catch (e) {}
+  };
+
+  // Core clock-anchored tick function
+  const handleTick = () => {
+    // Countdown check
+    if (isRunningRef.current && targetEndTimeRef.current !== null) {
+      const now = Date.now();
+      const leftMs = targetEndTimeRef.current - now;
+      const leftSecs = Math.max(0, Math.ceil(leftMs / 1000));
+      
+      setRemainingSecs(leftSecs);
+      remainingSecsRef.current = leftSecs;
+
+      const elapsed = Math.max(0, durationSecsRef.current - leftSecs);
+      commitProgress(elapsed);
+
+      if (leftSecs <= 0) {
+        handleComplete();
+        return;
+      }
+    }
+
+    // Stopwatch check
+    if (swIsRunningRef.current && swStartTimeRef.current > 0) {
+      const elapsedMs = swAccumulatedRef.current + (Date.now() - swStartTimeRef.current);
+      setSwTime(elapsedMs);
+    }
+  };
+
+  // Setup Web Worker for background ticking (immune to main-thread background throttling)
+  useEffect(() => {
+    let worker: Worker | null = null;
+    try {
+      const workerScript = `
+        var timerId = null;
+        self.onmessage = function(e) {
+          if (e.data === 'START') {
+            if (timerId) clearInterval(timerId);
+            timerId = setInterval(function() {
+              self.postMessage('TICK');
+            }, 300);
+          } else if (e.data === 'STOP') {
+            if (timerId) clearInterval(timerId);
+            timerId = null;
+          }
+        };
+      `;
+      const blob = new Blob([workerScript], { type: 'application/javascript' });
+      const url = URL.createObjectURL(blob);
+      worker = new Worker(url);
+      worker.onmessage = () => {
+        handleTick();
+      };
+      workerRef.current = worker;
+
+      // Start worker if already running
+      if (isRunningRef.current || swIsRunningRef.current) {
+        worker.postMessage('START');
+      }
+    } catch (err) {
+      console.warn("Dedicated web worker not supported in this environment", err);
+    }
+
+    return () => {
+      if (worker) {
+        worker.postMessage('STOP');
+        worker.terminate();
+        workerRef.current = null;
+      }
+    };
+  }, []);
+
+  // Fallback interval for main thread
+  useEffect(() => {
+    if (isRunning || swIsRunning) {
+      if (fallbackIntervalRef.current) clearInterval(fallbackIntervalRef.current);
+      fallbackIntervalRef.current = window.setInterval(handleTick, 400);
+    } else {
+      if (fallbackIntervalRef.current) {
+        clearInterval(fallbackIntervalRef.current);
+        fallbackIntervalRef.current = null;
+      }
+    }
+    return () => {
+      if (fallbackIntervalRef.current) {
+        clearInterval(fallbackIntervalRef.current);
+        fallbackIntervalRef.current = null;
+      }
+    };
+  }, [isRunning, swIsRunning]);
+
+  // Multi-event listeners for instant synchronization when waking from screen off or returning from other apps
+  useEffect(() => {
+    const syncOnWakeup = () => {
+      handleTick();
+      if (document.visibilityState === 'visible') {
+        if (isRunningRef.current || swIsRunningRef.current) {
+          requestWakeLock();
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', syncOnWakeup);
+    window.addEventListener('focus', syncOnWakeup);
+    window.addEventListener('pageshow', syncOnWakeup);
+
+    return () => {
+      document.removeEventListener('visibilitychange', syncOnWakeup);
+      window.removeEventListener('focus', syncOnWakeup);
+      window.removeEventListener('pageshow', syncOnWakeup);
+    };
+  }, [selectedHabit]);
+
+  // Restore saved timer and stopwatch states from localStorage on mount
+  useEffect(() => {
+    // Restore countdown state
+    const savedCountdown = localStorage.getItem('habitflow_timerState');
+    if (savedCountdown) {
+      try {
+        const parsed = JSON.parse(savedCountdown);
+        const habitStillExists = parsed.habitId ? habits.some(h => h.id === parsed.habitId) : true;
+        
+        if (!habitStillExists) {
+          localStorage.removeItem('habitflow_timerState');
+        } else {
+          const dur = parsed.durationSecs || 20 * 60;
+          setDurationSecs(dur);
+          durationSecsRef.current = dur;
+          lastLoggedSecsRef.current = parsed.lastLoggedSecs || 0;
+
+          if (parsed.isRunning && parsed.targetEndTime) {
+            const now = Date.now();
+            if (now < parsed.targetEndTime) {
+              const left = Math.max(0, Math.ceil((parsed.targetEndTime - now) / 1000));
+              setRemainingSecs(left);
+              remainingSecsRef.current = left;
+              setInputValue(formatTime(left));
+              setIsRunning(true);
+              isRunningRef.current = true;
+              targetEndTimeRef.current = parsed.targetEndTime;
+              
+              // Credit any progress made while inactive
+              const elapsed = Math.max(0, dur - left);
+              commitProgress(elapsed);
+
+              workerRef.current?.postMessage('START');
+              requestWakeLock();
+            } else {
+              // Expired while phone was in pocket / locked / browser tab suspended!
+              setRemainingSecs(0);
+              remainingSecsRef.current = 0;
+              setInputValue(formatTime(0));
+              setIsRunning(false);
+              isRunningRef.current = false;
+              targetEndTimeRef.current = null;
+              commitProgress(dur);
+              setCompletedModalOpen(true);
+              saveCountdownState(false, 0, dur, dur, null);
+              playAlarm();
+            }
+          } else {
+            const left = parsed.remainingSecs !== undefined ? parsed.remainingSecs : dur;
+            setRemainingSecs(left);
+            remainingSecsRef.current = left;
+            setInputValue(formatTime(left));
+          }
+        }
+      } catch (e) {}
+    }
+
+    // Restore stopwatch state
+    const savedSw = localStorage.getItem('habitflow_swState');
+    if (savedSw) {
+      try {
+        const parsedSw = JSON.parse(savedSw);
+        setSwLaps(parsedSw.swLaps || []);
+        if (parsedSw.swIsRunning && parsedSw.swStartTime) {
+          swStartTimeRef.current = parsedSw.swStartTime;
+          swAccumulatedRef.current = parsedSw.swAccumulated || 0;
+          swIsRunningRef.current = true;
+          setSwIsRunning(true);
+          const elapsed = swAccumulatedRef.current + (Date.now() - swStartTimeRef.current);
+          setSwTime(elapsed);
+          workerRef.current?.postMessage('START');
+          requestWakeLock();
+        } else {
+          swAccumulatedRef.current = parsedSw.swAccumulated || 0;
+          setSwTime(parsedSw.swAccumulated || 0);
+        }
+      } catch (e) {}
+    }
+  }, []);
+
+  // Initialize duration from habit goal when habit changes or when idle
   useEffect(() => {
     if (!isRunning && mode === 'countdown') {
       if (selectedHabit && selectedHabit.goalType === 'duration') {
-         const todayStr = formatDate(new Date());
-         const progress = selectedHabit.progress?.[todayStr] || 0;
-         let targetSecs = 0;
-         let remainingSecsForHabit = 0;
-         if (selectedHabit.durationUnit === 'sec') {
-           targetSecs = selectedHabit.goalValue || 0;
-           remainingSecsForHabit = Math.max(0, targetSecs - progress);
-         } else {
-           const targetMins = selectedHabit.durationUnit === 'hr' ? (selectedHabit.goalValue || 0) * 60 : (selectedHabit.goalValue || 0);
-           targetSecs = targetMins * 60;
-           const remainingMins = Math.max(0, targetMins - progress);
-           remainingSecsForHabit = remainingMins * 60;
-         }
-         
-         if (remainingSecsForHabit > 0) {
-           setDurationSecs(remainingSecsForHabit);
-           setRemainingSecs(remainingSecsForHabit);
-           setInputValue(formatTime(remainingSecsForHabit));
-           previousRemainingSecsRef.current = remainingSecsForHabit;
-         } else {
-           // If completed today, still show the original target duration
-           setDurationSecs(targetSecs);
-           setRemainingSecs(targetSecs);
-           setInputValue(formatTime(targetSecs));
-           previousRemainingSecsRef.current = targetSecs;
-         }
-      } else {
-         setDurationSecs(20 * 60);
-         setRemainingSecs(20 * 60);
-         setInputValue(formatTime(20 * 60));
-         previousRemainingSecsRef.current = 20 * 60;
+        const todayStr = formatDate(new Date());
+        const progress = selectedHabit.progress?.[todayStr] || 0;
+        let targetSecs = 0;
+        let remainingSecsForHabit = 0;
+        if (selectedHabit.durationUnit === 'sec') {
+          targetSecs = selectedHabit.goalValue || 0;
+          remainingSecsForHabit = Math.max(0, targetSecs - progress);
+        } else {
+          const targetMins = selectedHabit.durationUnit === 'hr' ? (selectedHabit.goalValue || 0) * 60 : (selectedHabit.goalValue || 0);
+          targetSecs = targetMins * 60;
+          const remainingMins = Math.max(0, targetMins - progress);
+          remainingSecsForHabit = remainingMins * 60;
+        }
+        
+        if (remainingSecsForHabit > 0) {
+          setDurationSecs(remainingSecsForHabit);
+          durationSecsRef.current = remainingSecsForHabit;
+          setRemainingSecs(remainingSecsForHabit);
+          remainingSecsRef.current = remainingSecsForHabit;
+          setInputValue(formatTime(remainingSecsForHabit));
+          lastLoggedSecsRef.current = 0;
+        } else {
+          setDurationSecs(targetSecs);
+          durationSecsRef.current = targetSecs;
+          setRemainingSecs(targetSecs);
+          remainingSecsRef.current = targetSecs;
+          setInputValue(formatTime(targetSecs));
+          lastLoggedSecsRef.current = 0;
+        }
+      } else if (!selectedHabit) {
+        setDurationSecs(20 * 60);
+        durationSecsRef.current = 20 * 60;
+        setRemainingSecs(20 * 60);
+        remainingSecsRef.current = 20 * 60;
+        setInputValue(formatTime(20 * 60));
+        lastLoggedSecsRef.current = 0;
       }
     }
   }, [selectedHabit?.id]);
 
-  // Track progress when running
+  // Reset timer if active habit changed
   useEffect(() => {
-    if (selectedHabit && selectedHabit.goalType === 'duration' && isRunning && mode === 'countdown') {
-      if (selectedHabit.durationUnit === 'sec') {
-        const oldSecs = durationSecs - previousRemainingSecsRef.current;
-        const newSecs = durationSecs - remainingSecs;
-        if (newSecs > oldSecs) {
-           updateHabitProgress(selectedHabit.id, formatDate(new Date()), newSecs - oldSecs);
-        }
-      } else {
-        const oldMins = Math.floor((durationSecs - previousRemainingSecsRef.current) / 60);
-        const newMins = Math.floor((durationSecs - remainingSecs) / 60);
-        if (newMins > oldMins) {
-           updateHabitProgress(selectedHabit.id, formatDate(new Date()), newMins - oldMins);
-        }
-      }
-    }
-    previousRemainingSecsRef.current = remainingSecs;
-  }, [remainingSecs, isRunning, selectedHabit, durationSecs, mode, updateHabitProgress]);
-
-  // Countdown Effect
-  useEffect(() => {
-    if (isRunning) {
-      timerRef.current = window.setInterval(() => {
-        setRemainingSecs(prev => {
-          if (prev <= 1) {
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    } else if (timerRef.current) {
-      clearInterval(timerRef.current);
-    }
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [isRunning]);
-
-  // Handle completion outside of state updater
-  useEffect(() => {
-    if (isRunning && remainingSecs === 0) {
-      handleComplete();
-    }
-  }, [remainingSecs, isRunning]);
-
-  // Stopwatch Effect
-  useEffect(() => {
-    if (swIsRunning) {
-      swIntervalRef.current = window.setInterval(() => {
-        setSwTime(swAccumulatedRef.current + (Date.now() - swStartTimeRef.current));
-      }, 10);
-    } else {
-      if (swIntervalRef.current) clearInterval(swIntervalRef.current);
-    }
-    return () => {
-      if (swIntervalRef.current) clearInterval(swIntervalRef.current);
-    };
-  }, [swIsRunning]);
-
-  // Load from localstorage if page restores
-  useEffect(() => {
-    const savedState = localStorage.getItem('habitflow_timerState');
-    if (savedState) {
-      const parsed = JSON.parse(savedState);
-      const habitStillExists = parsed.habitId ? habits.find(h => h.id === parsed.habitId) : true;
+    if (prevHabitIdRef.current !== activeHabitId) {
+      if (isRunning) handleReset();
+      if (swIsRunning) handleSwReset();
       
-      if (!habitStillExists) {
-        localStorage.removeItem('habitflow_timerState');
-        setIsRunning(false);
+      const newHabit = habits.find(h => h.id === activeHabitId);
+      if (!newHabit || newHabit.goalType !== 'duration') {
         setDurationSecs(20 * 60);
+        durationSecsRef.current = 20 * 60;
         setRemainingSecs(20 * 60);
+        remainingSecsRef.current = 20 * 60;
         setInputValue(formatTime(20 * 60));
-        clearServerTimer();
-        return;
+        lastLoggedSecsRef.current = 0;
       }
+      
+      prevHabitIdRef.current = activeHabitId;
+    }
+  }, [activeHabitId, habits]);
 
-      if (parsed.isRunning && parsed.endTime && mode === 'countdown') {
-        if (!hasLoadedOnce) {
-          // JS was killed / fresh reload - pause at last known value
-          setRemainingSecs(parsed.remainingSecs || 20 * 60);
-          setDurationSecs(parsed.durationSecs || parsed.remainingSecs || 20 * 60);
-          setInputValue(formatTime(parsed.remainingSecs || 20 * 60));
-          setIsRunning(false);
-        } else {
-          // JS is alive / navigating back - keep running
-          const now = Date.now();
-          if (now < parsed.endTime) {
-            setRemainingSecs(Math.floor((parsed.endTime - now) / 1000));
-            setDurationSecs(parsed.durationSecs || 20 * 60);
-            setIsRunning(true);
-          } else {
-            setRemainingSecs(0);
-            setCompletedModalOpen(true);
-          }
+  // Countdown Handlers
+  const handleStart = () => {
+    const currentRem = remainingSecs <= 0 ? durationSecs : remainingSecs;
+    const now = Date.now();
+    const targetEnd = now + currentRem * 1000;
+    
+    targetEndTimeRef.current = targetEnd;
+    durationSecsRef.current = durationSecs;
+    remainingSecsRef.current = currentRem;
+    isRunningRef.current = true;
+    setIsRunning(true);
+    setRemainingSecs(currentRem);
+    setInputValue(formatTime(currentRem));
+
+    saveCountdownState(true, currentRem, durationSecs, lastLoggedSecsRef.current, targetEnd);
+
+    workerRef.current?.postMessage('START');
+    requestWakeLock();
+
+    const title = selectedHabit ? selectedHabit.name : "Focus Session";
+    setServerTimer(currentRem, title);
+
+    // Send push or local notification if allowed
+    try {
+      if ('Notification' in window && Notification.permission === 'granted') {
+        const hrs = Math.floor(currentRem / 3600);
+        const mins = Math.floor((currentRem % 3600) / 60);
+        const secs = currentRem % 60;
+        let timeString = '';
+        if (hrs > 0) timeString += `${hrs} hour${hrs > 1 ? 's' : ''} `;
+        if (mins > 0) timeString += `${mins} minute${mins > 1 ? 's' : ''} `;
+        if (secs > 0 || timeString === '') timeString += `${secs} second${secs > 1 ? 's' : ''}`;
+        timeString = timeString.trim();
+
+        const notifBody = `${title}'s timer is set for ${timeString}.`;
+        if (navigator.serviceWorker && navigator.serviceWorker.ready) {
+          navigator.serviceWorker.ready.then(reg => {
+            reg.showNotification('Timer Started...', {
+              body: notifBody,
+              icon: '/icon-192.png',
+              badge: '/badge.png'
+            });
+          }).catch(() => {
+            new Notification('Timer Started...', { body: notifBody, icon: '/icon-192.png' });
+          });
         }
-      } else if (!parsed.isRunning && mode === 'countdown') {
-         setRemainingSecs(parsed.remainingSecs || 20 * 60);
-         setDurationSecs(parsed.durationSecs || parsed.remainingSecs || 20 * 60);
-         setInputValue(formatTime(parsed.remainingSecs || 20 * 60));
-         setIsRunning(false);
+      } else if ('Notification' in window && Notification.permission !== 'denied') {
+        Notification.requestPermission();
       }
-    }
-    hasLoadedOnce = true;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode]);
-
-  // Save to localstorage
-  useEffect(() => {
-    if (mode === 'countdown') {
-      if (isRunning) {
-        const endTime = Date.now() + remainingSecs * 1000;
-        localStorage.setItem('habitflow_timerState', JSON.stringify({ isRunning: true, endTime, habitId: activeHabitId, remainingSecs, durationSecs }));
-      } else {
-        localStorage.setItem('habitflow_timerState', JSON.stringify({ isRunning: false, remainingSecs, durationSecs, habitId: activeHabitId }));
-      }
-    }
-  }, [isRunning, remainingSecs, durationSecs, mode, activeHabitId]);
-
-  const handleComplete = () => {
-    setIsRunning(false);
-    try {
-      if ('vibrate' in navigator) navigator.vibrate([200, 100, 200]);
     } catch (e) {
-      console.warn("Vibrate error:", e);
+      console.warn("Notification error:", e);
     }
-    
-    // Play sound if possible
-    try {
-      const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-      const ctx = new AudioContext();
-      const osc = ctx.createOscillator();
-      osc.connect(ctx.destination);
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(800, ctx.currentTime);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.5);
-    } catch(e) {}
-    
-    setCompletedModalOpen(true);
+  };
+  
+  const handlePause = () => {
+    const now = Date.now();
+    let currentLeft = remainingSecs;
+    if (targetEndTimeRef.current) {
+      currentLeft = Math.max(0, Math.ceil((targetEndTimeRef.current - now) / 1000));
+    }
+    targetEndTimeRef.current = null;
+    isRunningRef.current = false;
+    setIsRunning(false);
+    setRemainingSecs(currentLeft);
+    remainingSecsRef.current = currentLeft;
+    setInputValue(formatTime(currentLeft));
+
+    if (!swIsRunningRef.current) {
+      workerRef.current?.postMessage('STOP');
+      releaseWakeLock();
+    }
+    clearServerTimer();
+
+    const elapsed = Math.max(0, durationSecs - currentLeft);
+    commitProgress(elapsed);
+    saveCountdownState(false, currentLeft, durationSecs, lastLoggedSecsRef.current, null);
+  };
+  
+  const handleReset = () => {
+    targetEndTimeRef.current = null;
+    isRunningRef.current = false;
+    setIsRunning(false);
+    setRemainingSecs(durationSecs);
+    remainingSecsRef.current = durationSecs;
+    setInputValue(formatTime(durationSecs));
+    lastLoggedSecsRef.current = 0;
+
+    if (!swIsRunningRef.current) {
+      workerRef.current?.postMessage('STOP');
+      releaseWakeLock();
+    }
+    clearServerTimer();
+    saveCountdownState(false, durationSecs, durationSecs, 0, null);
+  };
+
+  // Stopwatch Handlers
+  const handleSwStart = () => {
+    swStartTimeRef.current = Date.now();
+    swIsRunningRef.current = true;
+    setSwIsRunning(true);
+    workerRef.current?.postMessage('START');
+    requestWakeLock();
+    saveSwState(true, swAccumulatedRef.current, swStartTimeRef.current, swLaps);
+  };
+
+  const handleSwPause = () => {
+    swAccumulatedRef.current += Date.now() - swStartTimeRef.current;
+    swIsRunningRef.current = false;
+    setSwIsRunning(false);
+    if (!isRunningRef.current) {
+      workerRef.current?.postMessage('STOP');
+      releaseWakeLock();
+    }
+    saveSwState(false, swAccumulatedRef.current, 0, swLaps);
+  };
+
+  const handleSwReset = () => {
+    swAccumulatedRef.current = 0;
+    swIsRunningRef.current = false;
+    setSwIsRunning(false);
+    setSwTime(0);
+    setSwLaps([]);
+    if (!isRunningRef.current) {
+      workerRef.current?.postMessage('STOP');
+      releaseWakeLock();
+    }
+    saveSwState(false, 0, 0, []);
+  };
+
+  const handleSwLap = () => {
+    const currentLapTime = swAccumulatedRef.current + (Date.now() - swStartTimeRef.current);
+    setSwLaps(prev => {
+      const nextLaps = [...prev, currentLapTime];
+      saveSwState(swIsRunningRef.current, swAccumulatedRef.current, swStartTimeRef.current, nextLaps);
+      return nextLaps;
+    });
   };
 
   const formatSwTime = (ms: number) => {
@@ -253,97 +665,8 @@ export function TimerPage() {
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${c.toString().padStart(2, '0')}`;
   };
 
-  // Countdown Handlers
-  const handleStart = () => {
-    setIsRunning(true);
-    const title = selectedHabit ? selectedHabit.name : "Focus Session";
-    setServerTimer(durationSecs, title);
-    
-    // Format duration string
-    const hrs = Math.floor(durationSecs / 3600);
-    const mins = Math.floor((durationSecs % 3600) / 60);
-    const secs = durationSecs % 60;
-    let timeString = '';
-    if (hrs > 0) timeString += `${hrs} hour${hrs > 1 ? 's' : ''} `;
-    if (mins > 0) timeString += `${mins} minute${mins > 1 ? 's' : ''} `;
-    if (secs > 0 || timeString === '') timeString += `${secs} second${secs > 1 ? 's' : ''}`;
-    timeString = timeString.trim();
-    
-    try {
-      if ('Notification' in window && Notification.permission === 'granted') {
-        navigator.serviceWorker.ready.then(reg => {
-          reg.showNotification('Timer Started...', {
-            body: `${title}'s timer is set for ${timeString}.`,
-            icon: '/icon-192.png',
-            badge: '/badge.png'
-          });
-        }).catch(e => {
-          new Notification('Timer Started...', {
-            body: `${title}'s timer is set for ${timeString}.`,
-            icon: '/icon-192.png',
-            badge: '/badge.png'
-          });
-        });
-      } else if ('Notification' in window && Notification.permission !== 'denied') {
-        Notification.requestPermission();
-      }
-    } catch (e) {
-      console.warn("Notification error:", e);
-    }
-  };
-  
-  const handlePause = () => {
-    setIsRunning(false);
-    setInputValue(formatTime(remainingSecs));
-    clearServerTimer();
-  };
-  
-  const handleReset = () => {
-    setIsRunning(false);
-    setRemainingSecs(durationSecs);
-    setInputValue(formatTime(durationSecs));
-    clearServerTimer();
-  };
-
-  // Stopwatch Handlers
-  const handleSwStart = () => {
-    swStartTimeRef.current = Date.now();
-    setSwIsRunning(true);
-  };
-  const handleSwPause = () => {
-    swAccumulatedRef.current += Date.now() - swStartTimeRef.current;
-    setSwIsRunning(false);
-  };
-  const handleSwReset = () => {
-    swAccumulatedRef.current = 0;
-    setSwTime(0);
-    setSwLaps([]);
-    setSwIsRunning(false);
-  };
-  const handleSwLap = () => {
-    setSwLaps(prev => [...prev, swAccumulatedRef.current + (Date.now() - swStartTimeRef.current)]);
-  };
-
-  const prevHabitIdRef = useRef<string | null>(activeHabitId);
-
-  useEffect(() => {
-    if (prevHabitIdRef.current !== activeHabitId) {
-      if (isRunning) handleReset();
-      if (swIsRunning) handleSwReset();
-      
-      const newHabit = habits.find(h => h.id === activeHabitId);
-      if (!newHabit || newHabit.goalType !== 'duration') {
-        setDurationSecs(20 * 60);
-        setRemainingSecs(20 * 60);
-        previousRemainingSecsRef.current = 20 * 60;
-      }
-      
-      prevHabitIdRef.current = activeHabitId;
-    }
-  }, [activeHabitId, isRunning, swIsRunning, habits]);
-
   const progress = mode === 'countdown' 
-    ? (durationSecs > 0 ? ((durationSecs - remainingSecs) / durationSecs) * 100 : 0)
+    ? (durationSecs > 0 ? Math.min(100, Math.max(0, ((durationSecs - remainingSecs) / durationSecs) * 100)) : 0)
     : (swTime % 60000) / 60000 * 100; // Loop every minute
 
   const handleDone = () => {
@@ -435,14 +758,26 @@ export function TimerPage() {
 
           <div className="flex gap-2 p-1 bg-gray-100 dark:bg-gray-800 rounded-lg mb-6">
             <button 
-              onClick={() => { setMode('countdown'); setRemainingSecs(durationSecs); setIsRunning(false); }}
-              className={cn("px-4 py-1.5 text-sm font-medium rounded-md transition-colors", mode === 'countdown' ? "bg-white dark:bg-gray-700 shadow flex items-center gap-1.5" : "text-gray-500")}
+              onClick={() => { 
+                if (mode !== 'countdown') {
+                  setMode('countdown'); 
+                  setRemainingSecs(durationSecs); 
+                  setIsRunning(false);
+                }
+              }}
+              className={cn("px-4 py-1.5 text-sm font-medium rounded-md transition-colors", mode === 'countdown' ? "bg-white dark:bg-gray-700 shadow flex items-center gap-1.5 text-gray-900 dark:text-white" : "text-gray-500 hover:text-gray-900 dark:hover:text-white")}
             >
               Countdown
             </button>
             <button 
-              onClick={() => { setMode('stopwatch'); setRemainingSecs(0); setIsRunning(false); }}
-              className={cn("px-4 py-1.5 text-sm font-medium rounded-md transition-colors", mode === 'stopwatch' ? "bg-white dark:bg-gray-700 shadow flex items-center gap-1.5" : "text-gray-500")}
+              onClick={() => { 
+                if (mode !== 'stopwatch') {
+                  setMode('stopwatch'); 
+                  setRemainingSecs(0); 
+                  setIsRunning(false);
+                }
+              }}
+              className={cn("px-4 py-1.5 text-sm font-medium rounded-md transition-colors", mode === 'stopwatch' ? "bg-white dark:bg-gray-700 shadow flex items-center gap-1.5 text-gray-900 dark:text-white" : "text-gray-500 hover:text-gray-900 dark:hover:text-white")}
             >
               Stopwatch
             </button>
@@ -455,7 +790,7 @@ export function TimerPage() {
                 <circle cx="50" cy="50" r="45" fill="none" strokeWidth="4" className="stroke-gray-100 dark:stroke-gray-800" />
                 <circle 
                   cx="50" cy="50" r="45" fill="none" strokeWidth="4" 
-                  className="stroke-indigo-500 transition-all duration-1000 ease-linear"
+                  className="stroke-indigo-500 transition-all duration-300 ease-linear"
                   strokeLinecap="round"
                   strokeDasharray="283"
                   strokeDashoffset={283 - (283 * progress) / 100}
@@ -483,7 +818,9 @@ export function TimerPage() {
                         const secs = parseTime(inputValue);
                         if (secs > 0) {
                           setDurationSecs(secs);
+                          durationSecsRef.current = secs;
                           setRemainingSecs(secs);
+                          remainingSecsRef.current = secs;
                           setInputValue(formatTime(secs));
                         } else {
                           setInputValue(formatTime(durationSecs));
@@ -493,10 +830,10 @@ export function TimerPage() {
                       style={{ MozAppearance: 'textfield' }}
                     />
                     <div className="flex gap-1 mt-4">
-                      <button onClick={() => {setDurationSecs(5*60); setRemainingSecs(5*60); setInputValue(formatTime(5*60));}} className="text-[11px] uppercase font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 px-3 py-1.5 rounded-md">5m</button>
-                      <button onClick={() => {setDurationSecs(10*60); setRemainingSecs(10*60); setInputValue(formatTime(10*60));}} className="text-[11px] uppercase font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 px-3 py-1.5 rounded-md">10m</button>
-                      <button onClick={() => {setDurationSecs(30*60); setRemainingSecs(30*60); setInputValue(formatTime(30*60));}} className="text-[11px] uppercase font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 px-3 py-1.5 rounded-md">30m</button>
-                      <button onClick={() => {setDurationSecs(60*60); setRemainingSecs(60*60); setInputValue(formatTime(60*60));}} className="text-[11px] uppercase font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 px-3 py-1.5 rounded-md">1hr</button>
+                      <button onClick={() => {setDurationSecs(5*60); durationSecsRef.current = 5*60; setRemainingSecs(5*60); remainingSecsRef.current = 5*60; setInputValue(formatTime(5*60));}} className="text-[11px] uppercase font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 px-3 py-1.5 rounded-md">5m</button>
+                      <button onClick={() => {setDurationSecs(10*60); durationSecsRef.current = 10*60; setRemainingSecs(10*60); remainingSecsRef.current = 10*60; setInputValue(formatTime(10*60));}} className="text-[11px] uppercase font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 px-3 py-1.5 rounded-md">10m</button>
+                      <button onClick={() => {setDurationSecs(30*60); durationSecsRef.current = 30*60; setRemainingSecs(30*60); remainingSecsRef.current = 30*60; setInputValue(formatTime(30*60));}} className="text-[11px] uppercase font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 px-3 py-1.5 rounded-md">30m</button>
+                      <button onClick={() => {setDurationSecs(60*60); durationSecsRef.current = 60*60; setRemainingSecs(60*60); remainingSecsRef.current = 60*60; setInputValue(formatTime(60*60));}} className="text-[11px] uppercase font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 px-3 py-1.5 rounded-md">1hr</button>
                     </div>
                   </div>
                 ) : (
@@ -517,7 +854,7 @@ export function TimerPage() {
               <>
                 <button 
                   onClick={handleReset}
-                  className="w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-400 hover:bg-gray-200"
+                  className="w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-400 hover:bg-gray-200 transition-colors"
                 >
                   <RefreshCcw className="w-5 h-5" />
                 </button>
@@ -533,7 +870,7 @@ export function TimerPage() {
               <>
                 <button 
                   onClick={swIsRunning ? handleSwLap : handleSwReset}
-                  className="w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-400 hover:bg-gray-200"
+                  className="w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-400 hover:bg-gray-200 transition-colors"
                   title={swIsRunning ? "Lap" : "Reset"}
                 >
                   {swIsRunning ? <Flag className="w-5 h-5" /> : <RefreshCcw className="w-5 h-5" />}
@@ -546,7 +883,7 @@ export function TimerPage() {
                 </button>
                 <button 
                   onClick={handleSwReset}
-                  className="w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-400 hover:bg-gray-200"
+                  className="w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-600 dark:text-gray-400 hover:bg-gray-200 transition-colors"
                   title="Stop"
                 >
                   <Square className="w-4 h-4" fill="currentColor" />

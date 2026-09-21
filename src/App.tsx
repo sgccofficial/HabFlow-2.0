@@ -572,7 +572,9 @@ function AppContent() {
 
       <main className="w-full min-h-screen">
         {currentPage === 'habits' && <HabitsPage />}
-        {currentPage === 'timer' && <TimerPage />}
+        <div className={currentPage === 'timer' ? 'contents' : 'hidden'}>
+          <TimerPage />
+        </div>
         {currentPage === 'journal' && <JournalPage />}
         {currentPage === 'analytics' && <AnalyticsPage />}
       </main>

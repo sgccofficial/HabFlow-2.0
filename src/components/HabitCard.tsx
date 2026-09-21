@@ -91,21 +91,37 @@ export function HabitCard({ habit, onEdit, onOpenCalendar, dragHandleProps }: Ha
             <span className="text-xl font-bold leading-none select-none">!</span>
           </div>
         ) : isTimely && totalDurationGoal > 0 ? (
-          <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded-full px-2 py-1 border border-gray-200 dark:border-gray-600">
-             <span className="text-sm font-medium text-gray-700 dark:text-gray-300 ml-1 whitespace-nowrap">
-               {formatDuration(todayProgress)}/{formatDuration(totalDurationGoal)}
-             </span>
-             <button
-               onClick={(e) => {
-                 e.stopPropagation();
-                 setActiveHabitId(habit.id);
-                 setCurrentPage('timer');
-               }}
-               className="w-7 h-7 bg-white dark:bg-gray-600 rounded-full flex items-center justify-center shadow-sm text-indigo-600 dark:text-indigo-400 hover:scale-105 transition-transform"
-             >
-               <LucideIcons.Play className="w-3.5 h-3.5 ml-0.5" fill="currentColor" />
-             </button>
-          </div>
+          (isCompletedToday || todayProgress >= totalDurationGoal) ? (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleHabitDate(habit.id, todayStr);
+              }}
+              className={cn(
+                "w-10 h-10 rounded-full flex items-center justify-center transition-all flex-shrink-0",
+                "bg-green-500 text-white shadow-md shadow-green-500/20"
+              )}
+              aria-label="Mark uncompleted"
+            >
+              <LucideIcons.Check className="w-6 h-6" strokeWidth={3} />
+            </button>
+          ) : (
+            <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 rounded-full px-2 py-1 border border-gray-200 dark:border-gray-600">
+               <span className="text-sm font-medium text-gray-700 dark:text-gray-300 ml-1 whitespace-nowrap">
+                 {formatDuration(todayProgress)}/{formatDuration(totalDurationGoal)}
+               </span>
+               <button
+                 onClick={(e) => {
+                   e.stopPropagation();
+                   setActiveHabitId(habit.id);
+                   setCurrentPage('timer');
+                 }}
+                 className="w-7 h-7 bg-white dark:bg-gray-600 rounded-full flex items-center justify-center shadow-sm text-indigo-600 dark:text-indigo-400 hover:scale-105 transition-transform"
+               >
+                 <LucideIcons.Play className="w-3.5 h-3.5 ml-0.5" fill="currentColor" />
+               </button>
+            </div>
+          )
         ) : isDaily && dailyCompletions > 1 ? (
           todayProgress >= dailyCompletions ? (
             <button
