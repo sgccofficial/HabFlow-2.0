@@ -31,6 +31,7 @@ export interface Habit {
   legacyStreak?: number;
   legacyStreakDate?: string;
   legacyLongestStreak?: number;
+  updatedAt?: number;
 }
 
 export interface JournalEntry {
@@ -39,6 +40,7 @@ export interface JournalEntry {
   date: string; // ISO format "YYYY-MM-DD"
   content: string;
   createdAt?: number;
+  updatedAt?: number;
 }
 
 export interface JournalSettings {
