@@ -780,14 +780,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // When the user "signs in" from any device, don't bring any of the local content into his account.
-  // Sign in should show only the previously stored account data and nothing from local storage.
+  // When the user signs in from any device, merge any local device progress non-destructively with cloud data
   const signInAccount = async (username: string, pwd: string) => {
-    isSwitchingAccountRef.current = true;
     try {
       const { signInWithEmailAndPassword } = await import('firebase/auth');
       const { auth, db } = await import('../lib/firebase');
-      const { doc, getDoc } = await import('firebase/firestore');
+      const { doc, getDoc, setDoc } = await import('firebase/firestore');
 
       const email = `${username.toLowerCase()}@habitflow.local`;
       const userCredential = await signInWithEmailAndPassword(auth, email, pwd);
@@ -799,18 +797,42 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
 
       const data = userDoc.data();
-      // DO NOT bring any of the local content into his account!
-      // Sign in shows only the previously stored account data.
-      const accountHabits: Habit[] = Array.isArray(data.habits) ? data.habits : [];
-      const accountJournal: JournalEntry[] = Array.isArray(data.journal) ? data.journal : [];
-      const accountJS: Record<string, JournalSettings> = data.journalSettings || {};
-      const accountAS: JournalSettings = data.appSettings || {};
+      const cloudHabits: Habit[] = Array.isArray(data.habits) ? data.habits : [];
+      const cloudJournal: JournalEntry[] = Array.isArray(data.journal) ? data.journal : [];
+      const cloudJS: Record<string, JournalSettings> = data.journalSettings || {};
+      const cloudAS: JournalSettings = data.appSettings || {};
 
-      // Write ONLY to user's isolated storage keys
-      localStorage.setItem(`habitflow_habits_${uid}`, JSON.stringify(accountHabits));
-      localStorage.setItem(`habitflow_journal_${uid}`, JSON.stringify(accountJournal));
-      localStorage.setItem(`habitflow_journal_settings_${uid}`, JSON.stringify(accountJS));
-      localStorage.setItem(`habitflow_app_settings_${uid}`, JSON.stringify(accountAS));
+      // Check for any local device habits (e.g. from guest mode or offline device usage)
+      const cachedUserHabitsStr = localStorage.getItem(`habitflow_habits_${uid}`);
+      const localHabitsStr = localStorage.getItem('habitflow_local_habits');
+      const existingDeviceHabits: Habit[] = cachedUserHabitsStr 
+        ? JSON.parse(cachedUserHabitsStr) 
+        : (localHabitsStr ? JSON.parse(localHabitsStr) : []);
+
+      // Non-destructively merge device habits with cloud habits so no completions are ever lost
+      const unifiedHabits = mergeHabitLists(existingDeviceHabits, cloudHabits);
+
+      const cachedJournalStr = localStorage.getItem(`habitflow_journal_${uid}`);
+      const localJournalStr = localStorage.getItem('habitflow_local_journal');
+      const existingDeviceJournal: JournalEntry[] = cachedJournalStr 
+        ? JSON.parse(cachedJournalStr) 
+        : (localJournalStr ? JSON.parse(localJournalStr) : []);
+      const unifiedJournal = mergeJournalLists(existingDeviceJournal, cloudJournal);
+
+      // If local device had new dates/progress not yet on cloud, persist immediately to Firestore
+      if (JSON.stringify(unifiedHabits) !== JSON.stringify(cloudHabits) || JSON.stringify(unifiedJournal) !== JSON.stringify(cloudJournal)) {
+        await setDoc(doc(db, 'users', uid), { 
+          habits: unifiedHabits, 
+          journal: unifiedJournal, 
+          lastUpdated: Date.now() 
+        }, { merge: true });
+      }
+
+      // Write to user's storage keys
+      localStorage.setItem(`habitflow_habits_${uid}`, JSON.stringify(unifiedHabits));
+      localStorage.setItem(`habitflow_journal_${uid}`, JSON.stringify(unifiedJournal));
+      localStorage.setItem(`habitflow_journal_settings_${uid}`, JSON.stringify(cloudJS));
+      localStorage.setItem(`habitflow_app_settings_${uid}`, JSON.stringify(cloudAS));
 
       const userInfo = {
         id: uid,
@@ -821,22 +843,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('habitflow_current_user', JSON.stringify(userInfo));
 
       lastSyncedState.current = {
-        habits: JSON.stringify(accountHabits),
-        journal: JSON.stringify(accountJournal),
-        journalSettings: JSON.stringify(accountJS),
-        appSettings: JSON.stringify(accountAS)
+        habits: JSON.stringify(unifiedHabits),
+        journal: JSON.stringify(unifiedJournal),
+        journalSettings: JSON.stringify(cloudJS),
+        appSettings: JSON.stringify(cloudAS)
       };
 
-      // Set React state to only the cloud account's data
-      setHabits(accountHabits);
-      setJournal(accountJournal);
-      setJournalSettings(accountJS);
-      setAppSettings(accountAS);
+      setHabits(unifiedHabits);
+      setJournal(unifiedJournal);
+      setJournalSettings(cloudJS);
+      setAppSettings(cloudAS);
       setUser(userInfo);
-    } finally {
-      setTimeout(() => {
-        isSwitchingAccountRef.current = false;
-      }, 200);
+    } catch (err) {
+      throw err;
     }
   };
 

@@ -53,6 +53,14 @@ export function mergeHabit(localH: Habit, remoteH: Habit): Habit {
     ...remoteDatesSet
   ]);
 
+  // Include candidate dates from progress maps where progress exists
+  for (const [d, val] of Object.entries(localH.progress || {})) {
+    if (val > 0) allCandidateDates.add(d);
+  }
+  for (const [d, val] of Object.entries(remoteH.progress || {})) {
+    if (val > 0) allCandidateDates.add(d);
+  }
+
   const finalDates: string[] = [];
   for (const d of allCandidateDates) {
     const cTs = mergedCompletedAt[d] || 0;
@@ -63,10 +71,10 @@ export function mergeHabit(localH: Habit, remoteH: Habit): Habit {
       continue;
     }
 
-    // Otherwise, include if completion is newer, or if present in either device's dates and never uncompleted
+    // Otherwise, include if completion is newer, or if present in either device's dates/progress and never uncompleted
     if (cTs > uTs) {
       finalDates.push(d);
-    } else if (uTs === 0 && (localDatesSet.has(d) || remoteDatesSet.has(d))) {
+    } else if (uTs === 0 && (localDatesSet.has(d) || remoteDatesSet.has(d) || (localH.progress?.[d] || 0) > 0 || (remoteH.progress?.[d] || 0) > 0)) {
       finalDates.push(d);
     }
   }

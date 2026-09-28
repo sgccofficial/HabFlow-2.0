@@ -128,7 +128,7 @@ export function calculateStreak(habit: Habit, endDateStr?: string): number {
   const todayStr = formatDate(new Date());
 
   let streak = 0;
-  let current = endDateStr ? new Date(endDateStr + 'T12:00:00') : new Date();
+  let current = new Date((endDateStr || todayStr) + 'T12:00:00');
 
   while (true) {
     const dStr = formatDate(current);
