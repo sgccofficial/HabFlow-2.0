@@ -1,3 +1,5 @@
+const CACHE_NAME = 'habitflow-v2.1';
+
 self.addEventListener('push', e => {
   let data;
   try {
@@ -15,32 +17,22 @@ self.addEventListener('push', e => {
   );
 });
 
-const CACHE_NAME = 'habitflow-cache-v2.1';
-
 self.addEventListener('install', (e) => {
   self.skipWaiting();
-  e.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll([
-        '/',
-        '/index.html',
-        '/manifest.json'
-      ]);
-    })
-  );
 });
 
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys().then((keyList) => {
-      return Promise.all(keyList.map((key) => {
-        if (key !== CACHE_NAME) {
-          return caches.delete(key);
-        }
-      }));
-    })
+      return Promise.all(
+        keyList.map((key) => {
+          if (key !== CACHE_NAME) {
+            return caches.delete(key);
+          }
+        })
+      );
+    }).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 self.addEventListener('fetch', (e) => {
@@ -62,40 +54,25 @@ self.addEventListener('fetch', (e) => {
     return;
   }
   
-  // Navigation / HTML: Network-first, fallback to cache
-  if (e.request.mode === 'navigate' || e.request.headers.get('accept')?.includes('text/html')) {
-    e.respondWith(
-      fetch(e.request).then((fetchRes) => {
-        return caches.open(CACHE_NAME).then((cache) => {
-          if (e.request.url.startsWith('http')) {
-            cache.put(e.request, fetchRes.clone());
+  // Network-first for all HTML navigation and assets to ensure immediate website updates after deploy
+  e.respondWith(
+    fetch(e.request)
+      .then((networkRes) => {
+        if (networkRes && networkRes.status === 200 && e.request.url.startsWith('http')) {
+          const resClone = networkRes.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(e.request, resClone));
+        }
+        return networkRes;
+      })
+      .catch(() => {
+        return caches.match(e.request).then((cached) => {
+          if (cached) return cached;
+          if (e.request.mode === 'navigate' || e.request.headers.get('accept')?.includes('text/html')) {
+            return caches.match('/index.html') || caches.match('/');
           }
-          return fetchRes;
-        });
-      }).catch(() => {
-        return caches.match(e.request).then((response) => {
-          return response || caches.match('/');
+          return new Response('Offline', { status: 503, statusText: 'Service Unavailable' });
         });
       })
-    );
-    return;
-  }
-
-  // Assets & JS: Network-first when online, fallback to cache
-  e.respondWith(
-    fetch(e.request).then((fetchRes) => {
-      if (fetchRes && fetchRes.status === 200) {
-        const copy = fetchRes.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          if (e.request.url.startsWith('http')) {
-            cache.put(e.request, copy);
-          }
-        });
-      }
-      return fetchRes;
-    }).catch(() => {
-      return caches.match(e.request);
-    })
   );
 });
 

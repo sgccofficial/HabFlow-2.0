@@ -14,7 +14,7 @@ const fbApp = initializeApp(firebaseConfig, 'server');
 const db = getFirestore(fbApp, firebaseConfig.firestoreDatabaseId || '(default)');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 app.use(express.json());
 
 let vapidKeys: { publicKey: string, privateKey: string };
