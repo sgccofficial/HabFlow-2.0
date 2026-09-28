@@ -17,20 +17,17 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
+      // Clear legacy browser caches so the user always loads the latest code
+      if ('caches' in window) {
+        caches.keys().then((names) => {
+          names.forEach((name) => caches.delete(name));
+        }).catch(() => {});
+      }
+
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js?v=2.1').then(async (registration) => {
+          navigator.serviceWorker.register('/sw.js').then(async (registration) => {
             console.log('SW registered: ', registration);
-            try {
-              registration.update();
-            } catch (e) {}
-
-            // Check for updates on visibility change
-            document.addEventListener('visibilitychange', () => {
-              if (document.visibilityState === 'visible') {
-                registration.update().catch(() => {});
-              }
-            });
             
             // Register Background Sync
             if ('sync' in registration) {
@@ -59,15 +56,6 @@
           }).catch(registrationError => {
             console.log('SW registration failed: ', registrationError);
           });
-        });
-
-        // When a new service worker takes control, refresh to show newest version
-        let refreshing = false;
-        navigator.serviceWorker.addEventListener('controllerchange', () => {
-          if (!refreshing) {
-            refreshing = true;
-            window.location.reload();
-          }
         });
       }
     </script>
