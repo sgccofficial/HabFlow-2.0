@@ -110,6 +110,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return saved ? JSON.parse(saved) : {};
   });
 
+  // Keep refs to latest states to prevent stale closure issues in background tasks & listeners
+  const habitsRef = useRef(habits);
+  useEffect(() => { habitsRef.current = habits; }, [habits]);
+  const journalRef = useRef(journal);
+  useEffect(() => { journalRef.current = journal; }, [journal]);
+  const journalSettingsRef = useRef(journalSettings);
+  useEffect(() => { journalSettingsRef.current = journalSettings; }, [journalSettings]);
+  const appSettingsRef = useRef(appSettings);
+  useEffect(() => { appSettingsRef.current = appSettings; }, [appSettings]);
+  const userRef = useRef(user);
+  useEffect(() => { userRef.current = user; }, [user]);
+
   // Critical: Initialize lastSyncedState with current state on mount so opening devices
   // never immediately overwrite Firebase with stale cached data before remote sync completes.
   const lastSyncedState = useRef({
@@ -118,6 +130,121 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     journalSettings: JSON.stringify(journalSettings),
     appSettings: JSON.stringify(appSettings)
   });
+
+  // Dedicated immediate flush function for saving to Firestore without dropping writes when backgrounded
+  const flushSaveToFirestore = async (
+    targetHabits = habitsRef.current,
+    targetJournal = journalRef.current,
+    targetJS = journalSettingsRef.current,
+    targetAS = appSettingsRef.current
+  ) => {
+    const targetUser = userRef.current;
+    if (!targetUser || !targetUser.id || isLoggingOutRef.current || isSwitchingAccountRef.current) return;
+    
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
+
+    try {
+      const { db } = await import('../lib/firebase');
+      const { doc, setDoc } = await import('firebase/firestore');
+
+      const habitsStr = JSON.stringify(targetHabits);
+      const journalStr = JSON.stringify(targetJournal);
+      const jsStr = JSON.stringify(targetJS);
+      const asStr = JSON.stringify(targetAS);
+
+      lastSyncedState.current = {
+        habits: habitsStr,
+        journal: journalStr,
+        journalSettings: jsStr,
+        appSettings: asStr
+      };
+
+      const now = Date.now();
+      const cleanData: any = {
+        habits: JSON.parse(habitsStr),
+        journal: JSON.parse(journalStr),
+        journalSettings: JSON.parse(jsStr),
+        appSettings: JSON.parse(asStr),
+        lastUpdated: now
+      };
+
+      await setDoc(doc(db, 'users', targetUser.id), cleanData, { merge: true });
+      const storageKey = getStorageKey('habitflow_habits', targetUser);
+      localStorage.setItem(storageKey, habitsStr);
+      setSyncStatus('synced');
+      setLastSyncedAt(now);
+      localStorage.setItem('habitflow_last_synced_at', String(now));
+    } catch (err) {
+      console.warn("Silent save to Firestore warning:", err);
+    }
+  };
+
+  // Immediate flush on page hide/unload/visibility change to prevent lost data on mobile sleep/close
+  useEffect(() => {
+    const handleFlush = () => {
+      if (userRef.current && userRef.current.id) {
+        flushSaveToFirestore();
+      }
+    };
+
+    window.addEventListener('pagehide', handleFlush);
+    window.addEventListener('beforeunload', handleFlush);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        handleFlush();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      window.removeEventListener('pagehide', handleFlush);
+      window.removeEventListener('beforeunload', handleFlush);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, []);
+
+  // Listen to Firebase Auth state for automatic seamless silent session recovery across devices
+  useEffect(() => {
+    let unsubscribeAuth: (() => void) | null = null;
+    (async () => {
+      try {
+        const { auth, db } = await import('../lib/firebase');
+        const { onAuthStateChanged } = await import('firebase/auth');
+        const { doc, getDoc } = await import('firebase/firestore');
+
+        unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+          if (isLoggingOutRef.current || isSwitchingAccountRef.current) return;
+          if (firebaseUser && !userRef.current) {
+            try {
+              const uDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+              if (uDoc.exists()) {
+                const uData = uDoc.data();
+                const restoredUser = {
+                  id: firebaseUser.uid,
+                  username: uData.username || firebaseUser.email?.replace(/@.*$/, '') || 'user',
+                  name: uData.name || firebaseUser.displayName || 'User',
+                  photoURL: uData.photoURL || firebaseUser.photoURL || ''
+                };
+                localStorage.setItem('habitflow_current_user', JSON.stringify(restoredUser));
+                setUser(restoredUser);
+              }
+            } catch (err) {
+              console.warn("Silent auth restore error:", err);
+            }
+          }
+        });
+      } catch (err) {
+        console.warn("Auth listener setup error:", err);
+      }
+    })();
+
+    return () => {
+      if (unsubscribeAuth) unsubscribeAuth();
+    };
+  }, []);
 
   // Cross-tab sync: instantly synchronize habit done/not done status across multiple browser tabs on same device
   useEffect(() => {
@@ -310,9 +437,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               if (remoteData.habits && Array.isArray(remoteData.habits)) {
                 setHabits(prevHabits => {
                   const merged = mergeHabitLists(prevHabits, remoteData.habits);
+                  habitsRef.current = merged;
                   const str = JSON.stringify(merged);
                   lastSyncedState.current.habits = str;
                   localStorage.setItem(userHabitsKey, str);
+                  // If local had dates or updates not yet on remote, persist back immediately
+                  if (str !== JSON.stringify(remoteData.habits)) {
+                    setDoc(userDocRef, { habits: merged, lastUpdated: Date.now() }, { merge: true }).catch(() => {});
+                  }
                   return merged;
                 });
               }
@@ -320,6 +452,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               if (remoteData.journal && Array.isArray(remoteData.journal)) {
                 setJournal(prevJournal => {
                   const merged = mergeJournalLists(prevJournal, remoteData.journal);
+                  journalRef.current = merged;
                   const str = JSON.stringify(merged);
                   lastSyncedState.current.journal = str;
                   localStorage.setItem(userJournalKey, str);
@@ -330,6 +463,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               if (remoteData.journalSettings) {
                 setJournalSettings(prev => {
                   const merged = { ...prev, ...remoteData.journalSettings };
+                  journalSettingsRef.current = merged;
                   const str = JSON.stringify(merged);
                   lastSyncedState.current.journalSettings = str;
                   localStorage.setItem(userJSettingsKey, str);
@@ -340,6 +474,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               if (remoteData.appSettings) {
                 setAppSettings(prev => {
                   const merged = { ...prev, ...remoteData.appSettings };
+                  appSettingsRef.current = merged;
                   const str = JSON.stringify(merged);
                   lastSyncedState.current.appSettings = str;
                   localStorage.setItem(userASettingsKey, str);
@@ -393,7 +528,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                   setHabits(prevHabits => {
                     const merged = mergeHabitLists(prevHabits, data.habits);
                     const str = JSON.stringify(merged);
-                    if (str !== lastSyncedState.current.habits) {
+                    if (str !== JSON.stringify(prevHabits)) {
+                      habitsRef.current = merged;
                       lastSyncedState.current.habits = str;
                       localStorage.setItem(userHabitsKey, str);
                       return merged;
@@ -406,7 +542,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                   setJournal(prevJournal => {
                     const merged = mergeJournalLists(prevJournal, data.journal);
                     const str = JSON.stringify(merged);
-                    if (str !== lastSyncedState.current.journal) {
+                    if (str !== JSON.stringify(prevJournal)) {
+                      journalRef.current = merged;
                       lastSyncedState.current.journal = str;
                       localStorage.setItem(userJournalKey, str);
                       return merged;
@@ -419,6 +556,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                   const str = JSON.stringify(data.journalSettings);
                   if (str !== lastSyncedState.current.journalSettings) {
                     lastSyncedState.current.journalSettings = str;
+                    journalSettingsRef.current = data.journalSettings;
                     setJournalSettings(data.journalSettings);
                     localStorage.setItem(userJSettingsKey, str);
                   }
@@ -428,6 +566,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                   const str = JSON.stringify(data.appSettings);
                   if (str !== lastSyncedState.current.appSettings) {
                     lastSyncedState.current.appSettings = str;
+                    appSettingsRef.current = data.appSettings;
                     setAppSettings(data.appSettings);
                     localStorage.setItem(userASettingsKey, str);
                   }
@@ -482,39 +621,43 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const userDocRef = doc(db, 'users', user.id);
       const snap = await getDoc(userDocRef);
 
-      let currentHabits = habits;
-      let currentJournal = journal;
-      let currentJS = journalSettings;
-      let currentAS = appSettings;
+      let currentHabits = habitsRef.current;
+      let currentJournal = journalRef.current;
+      let currentJS = journalSettingsRef.current;
+      let currentAS = appSettingsRef.current;
 
       if (snap.exists()) {
         const remoteData = snap.data();
         if (remoteData.habits && Array.isArray(remoteData.habits)) {
-          currentHabits = mergeHabitLists(habits, remoteData.habits);
+          currentHabits = mergeHabitLists(habitsRef.current, remoteData.habits);
           setHabits(currentHabits);
+          habitsRef.current = currentHabits;
           const str = JSON.stringify(currentHabits);
-          localStorage.setItem(getStorageKey('habitflow_habits'), str);
+          localStorage.setItem(getStorageKey('habitflow_habits', user), str);
           lastSyncedState.current.habits = str;
         }
         if (remoteData.journal && Array.isArray(remoteData.journal)) {
-          currentJournal = mergeJournalLists(journal, remoteData.journal);
+          currentJournal = mergeJournalLists(journalRef.current, remoteData.journal);
           setJournal(currentJournal);
+          journalRef.current = currentJournal;
           const str = JSON.stringify(currentJournal);
-          localStorage.setItem(getStorageKey('habitflow_journal'), str);
+          localStorage.setItem(getStorageKey('habitflow_journal', user), str);
           lastSyncedState.current.journal = str;
         }
         if (remoteData.journalSettings) {
-          currentJS = { ...journalSettings, ...remoteData.journalSettings };
+          currentJS = { ...journalSettingsRef.current, ...remoteData.journalSettings };
           setJournalSettings(currentJS);
+          journalSettingsRef.current = currentJS;
           const str = JSON.stringify(currentJS);
-          localStorage.setItem(getStorageKey('habitflow_journal_settings'), str);
+          localStorage.setItem(getStorageKey('habitflow_journal_settings', user), str);
           lastSyncedState.current.journalSettings = str;
         }
         if (remoteData.appSettings) {
-          currentAS = { ...appSettings, ...remoteData.appSettings };
+          currentAS = { ...appSettingsRef.current, ...remoteData.appSettings };
           setAppSettings(currentAS);
+          appSettingsRef.current = currentAS;
           const str = JSON.stringify(currentAS);
-          localStorage.setItem(getStorageKey('habitflow_app_settings'), str);
+          localStorage.setItem(getStorageKey('habitflow_app_settings', user), str);
           lastSyncedState.current.appSettings = str;
         }
       }
@@ -553,7 +696,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener('focus', handleSilentSync);
       window.removeEventListener('online', handleSilentSync);
     };
-  }, [user, habits, journal, journalSettings, appSettings]);
+  }, [user]);
 
   // When a user "creates an account", sync all locally saved content to his account,
   // and save further changes in his account - not to local.
@@ -1013,25 +1156,76 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const toggleHabitDate = (id: string, date: string) => {
     const now = Date.now();
     lastLocalEditTime.current = now;
-    setHabits(prev => prev.map(h => {
-      if (h.id === id) {
-        const isCurrentlyDone = (h.dates || []).includes(date);
-        const dates = isCurrentlyDone
-          ? h.dates.filter(d => d !== date)
-          : [...(h.dates || []), date];
-        
-        const completedAt = { ...(h.completedAt || {}) };
-        const uncompletedAt = { ...(h.uncompletedAt || {}) };
+    setHabits(prev => {
+      const nextHabits = prev.map(h => {
+        if (h.id === id) {
+          const isCurrentlyDone = (h.dates || []).includes(date);
+          const dates = isCurrentlyDone
+            ? (h.dates || []).filter(d => d !== date)
+            : [...(h.dates || []), date];
+          
+          const completedAt = { ...(h.completedAt || {}) };
+          const uncompletedAt = { ...(h.uncompletedAt || {}) };
 
-        if (!isCurrentlyDone) {
-          completedAt[date] = now;
-        } else {
-          uncompletedAt[date] = now;
+          if (!isCurrentlyDone) {
+            completedAt[date] = now;
+          } else {
+            uncompletedAt[date] = now;
+          }
+
+          // Also sync with progress object
+          const progress = { ...(h.progress || {}) };
+          if (!isCurrentlyDone) {
+            const isTimely = h.durationGoal !== undefined ? h.durationGoal > 0 : h.goalType === 'duration';
+            const durationGoal = h.durationGoal || (h.goalType === 'duration' ? (h.durationUnit === 'hr' ? (h.goalValue || 0) * 3600 : h.durationUnit === 'min' ? (h.goalValue || 0) * 60 : (h.goalValue || 0)) : 0);
+            const isDaily = h.dailyCompletions !== undefined ? h.dailyCompletions > 0 : (h.goalType === 'daily' || h.goalType === 'weekly');
+            const dailyCompletions = h.dailyCompletions || ((h.goalType === 'daily' || h.goalType === 'weekly') ? h.goalValue || 1 : 1);
+            
+            let targetValue = 1;
+            if (isTimely) {
+              targetValue = durationGoal * (isDaily ? dailyCompletions : 1);
+            } else if (isDaily) {
+              targetValue = dailyCompletions;
+            }
+            
+            progress[date] = targetValue; // if they check it, set to goal
+          } else {
+            progress[date] = 0;
+          }
+          
+          return {
+            ...h,
+            dates,
+            progress,
+            completedAt,
+            uncompletedAt,
+            updatedAt: now
+          };
         }
+        return h;
+      });
 
-        // Also sync with progress object
-        const progress = { ...(h.progress || {}) };
-        if (!isCurrentlyDone) {
+      habitsRef.current = nextHabits;
+      const key = getStorageKey('habitflow_habits', userRef.current);
+      localStorage.setItem(key, JSON.stringify(nextHabits));
+
+      if (userRef.current && userRef.current.id) {
+        flushSaveToFirestore(nextHabits);
+      }
+
+      return nextHabits;
+    });
+  };
+
+  const updateHabitProgress = (id: string, date: string, increment: number) => {
+    const now = Date.now();
+    lastLocalEditTime.current = now;
+    setHabits(prev => {
+      const nextHabits = prev.map(h => {
+        if (h.id === id) {
+          const progress = { ...(h.progress || {}) };
+          const current = progress[date] || 0;
+          
           const isTimely = h.durationGoal !== undefined ? h.durationGoal > 0 : h.goalType === 'duration';
           const durationGoal = h.durationGoal || (h.goalType === 'duration' ? (h.durationUnit === 'hr' ? (h.goalValue || 0) * 3600 : h.durationUnit === 'min' ? (h.goalValue || 0) * 60 : (h.goalValue || 0)) : 0);
           const isDaily = h.dailyCompletions !== undefined ? h.dailyCompletions > 0 : (h.goalType === 'daily' || h.goalType === 'weekly');
@@ -1043,75 +1237,48 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           } else if (isDaily) {
             targetValue = dailyCompletions;
           }
+
+          let next = Math.max(0, current + increment);
+          if (isDaily && !isTimely) {
+            next = Math.min(next, targetValue);
+          }
+          progress[date] = next;
           
-          progress[date] = targetValue; // if they check it, set to goal
-        } else {
-          progress[date] = 0;
+          const completedAt = { ...(h.completedAt || {}) };
+          const uncompletedAt = { ...(h.uncompletedAt || {}) };
+
+          // sync legacy dates array for basic presence checks
+          let dates = [...(h.dates || [])];
+          if (next >= targetValue && !dates.includes(date)) {
+            dates.push(date);
+            completedAt[date] = now;
+          } else if (next < targetValue && dates.includes(date)) {
+            dates = dates.filter(d => d !== date);
+            uncompletedAt[date] = now;
+          }
+          
+          return {
+            ...h,
+            progress,
+            dates,
+            completedAt,
+            uncompletedAt,
+            updatedAt: now
+          };
         }
-        
-        return {
-          ...h,
-          dates,
-          progress,
-          completedAt,
-          uncompletedAt,
-          updatedAt: now
-        };
+        return h;
+      });
+
+      habitsRef.current = nextHabits;
+      const key = getStorageKey('habitflow_habits', userRef.current);
+      localStorage.setItem(key, JSON.stringify(nextHabits));
+
+      if (userRef.current && userRef.current.id) {
+        flushSaveToFirestore(nextHabits);
       }
-      return h;
-    }));
-  };
 
-  const updateHabitProgress = (id: string, date: string, increment: number) => {
-    const now = Date.now();
-    lastLocalEditTime.current = now;
-    setHabits(prev => prev.map(h => {
-      if (h.id === id) {
-        const progress = { ...(h.progress || {}) };
-        const current = progress[date] || 0;
-        
-        const isTimely = h.durationGoal !== undefined ? h.durationGoal > 0 : h.goalType === 'duration';
-        const durationGoal = h.durationGoal || (h.goalType === 'duration' ? (h.durationUnit === 'hr' ? (h.goalValue || 0) * 3600 : h.durationUnit === 'min' ? (h.goalValue || 0) * 60 : (h.goalValue || 0)) : 0);
-        const isDaily = h.dailyCompletions !== undefined ? h.dailyCompletions > 0 : (h.goalType === 'daily' || h.goalType === 'weekly');
-        const dailyCompletions = h.dailyCompletions || ((h.goalType === 'daily' || h.goalType === 'weekly') ? h.goalValue || 1 : 1);
-        
-        let targetValue = 1;
-        if (isTimely) {
-          targetValue = durationGoal * (isDaily ? dailyCompletions : 1);
-        } else if (isDaily) {
-          targetValue = dailyCompletions;
-        }
-
-        let next = Math.max(0, current + increment);
-        if (isDaily && !isTimely) {
-          next = Math.min(next, targetValue);
-        }
-        progress[date] = next;
-        
-        const completedAt = { ...(h.completedAt || {}) };
-        const uncompletedAt = { ...(h.uncompletedAt || {}) };
-
-        // sync legacy dates array for basic presence checks
-        let dates = [...(h.dates || [])];
-        if (next >= targetValue && !dates.includes(date)) {
-          dates.push(date);
-          completedAt[date] = now;
-        } else if (next < targetValue && dates.includes(date)) {
-          dates = dates.filter(d => d !== date);
-          uncompletedAt[date] = now;
-        }
-        
-        return {
-          ...h,
-          progress,
-          dates,
-          completedAt,
-          uncompletedAt,
-          updatedAt: now
-        };
-      }
-      return h;
-    }));
+      return nextHabits;
+    });
   };
 
   const addJournalEntry = (data: Omit<JournalEntry, 'id'>) => {

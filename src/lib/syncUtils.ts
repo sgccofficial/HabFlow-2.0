@@ -19,15 +19,15 @@ export function mergeHabit(localH: Habit, remoteH: Habit): Habit {
   const remoteUncompletedAt: Record<string, number> = { ...(remoteH.uncompletedAt || {}) };
 
   // Support legacy dates: If any habit has dates without timestamps,
-  // assign an initial baseline timestamp (1) so legacy completions are preserved
+  // assign timestamp based on habit update time or baseline so completions are preserved
   for (const d of (localH.dates || [])) {
-    if (!localCompletedAt[d] && !localUncompletedAt[d]) {
-      localCompletedAt[d] = 1;
+    if (!localCompletedAt[d]) {
+      localCompletedAt[d] = localUpdated || 1;
     }
   }
   for (const d of (remoteH.dates || [])) {
-    if (!remoteCompletedAt[d] && !remoteUncompletedAt[d]) {
-      remoteCompletedAt[d] = 1;
+    if (!remoteCompletedAt[d]) {
+      remoteCompletedAt[d] = remoteUpdated || 1;
     }
   }
 
@@ -43,20 +43,30 @@ export function mergeHabit(localH: Habit, remoteH: Habit): Habit {
     mergedUncompletedAt[d] = Math.max(mergedUncompletedAt[d] || 0, ts);
   }
 
-  // A date is considered completed if its completion timestamp is strictly greater
-  // than its uncompleted timestamp (or if it was in either dates list and not uncompleted)
+  const localDatesSet = new Set(localH.dates || []);
+  const remoteDatesSet = new Set(remoteH.dates || []);
+
   const allCandidateDates = new Set([
     ...Object.keys(mergedCompletedAt),
     ...Object.keys(mergedUncompletedAt),
-    ...(localH.dates || []),
-    ...(remoteH.dates || [])
+    ...localDatesSet,
+    ...remoteDatesSet
   ]);
 
   const finalDates: string[] = [];
   for (const d of allCandidateDates) {
     const cTs = mergedCompletedAt[d] || 0;
     const uTs = mergedUncompletedAt[d] || 0;
+
+    // If explicitly uncompleted after or at the time of completion, exclude it
+    if (uTs > 0 && uTs >= cTs) {
+      continue;
+    }
+
+    // Otherwise, include if completion is newer, or if present in either device's dates and never uncompleted
     if (cTs > uTs) {
+      finalDates.push(d);
+    } else if (uTs === 0 && (localDatesSet.has(d) || remoteDatesSet.has(d))) {
       finalDates.push(d);
     }
   }
@@ -78,11 +88,18 @@ export function mergeHabit(localH: Habit, remoteH: Habit): Habit {
     } else {
       const uTs = mergedUncompletedAt[d] || 0;
       const cTs = mergedCompletedAt[d] || 0;
-      if (uTs >= cTs) {
+      if (uTs >= cTs && uTs > 0) {
         mergedProgress[d] = 0;
       } else {
         mergedProgress[d] = maxP;
       }
+    }
+  }
+
+  // Ensure every completed date has at least progress 1
+  for (const d of finalDates) {
+    if (!mergedProgress[d] || mergedProgress[d] <= 0) {
+      mergedProgress[d] = 1;
     }
   }
 
