@@ -1,17 +1,21 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, setPersistence, browserLocalPersistence } from 'firebase/auth';
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
+import { initializeFirestore, getFirestore, persistentLocalCache, persistentMultipleTabManager, Firestore } from 'firebase/firestore';
 
 import firebaseConfig from './firebase-config.json';
 
-console.log("Firebase config loaded:", firebaseConfig);
-
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const db = initializeFirestore(app, {
-  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
-}, firebaseConfig.firestoreDatabaseId || '(default)');
 
+let db: Firestore;
+try {
+  db = initializeFirestore(app, {
+    localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+  }, firebaseConfig.firestoreDatabaseId || '(default)');
+} catch (e) {
+  console.warn("Falling back to standard getFirestore:", e);
+  db = getFirestore(app, firebaseConfig.firestoreDatabaseId || '(default)');
+}
 
 // Use local persistence for auth
 setPersistence(auth, browserLocalPersistence);

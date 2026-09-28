@@ -15,10 +15,12 @@ self.addEventListener('push', e => {
   );
 });
 
+const CACHE_NAME = 'habitflow-cache-v2.1';
+
 self.addEventListener('install', (e) => {
   self.skipWaiting();
   e.waitUntil(
-    caches.open('habitflow-cache-v1.0').then((cache) => {
+    caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll([
         '/',
         '/index.html',
@@ -32,7 +34,7 @@ self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys().then((keyList) => {
       return Promise.all(keyList.map((key) => {
-        if (key !== 'habitflow-cache-v1.0') {
+        if (key !== CACHE_NAME) {
           return caches.delete(key);
         }
       }));
@@ -60,10 +62,11 @@ self.addEventListener('fetch', (e) => {
     return;
   }
   
-  if (e.request.mode === 'navigate' || e.request.headers.get('accept').includes('text/html')) {
+  // Navigation / HTML: Network-first, fallback to cache
+  if (e.request.mode === 'navigate' || e.request.headers.get('accept')?.includes('text/html')) {
     e.respondWith(
       fetch(e.request).then((fetchRes) => {
-        return caches.open('habitflow-cache-v1.0').then((cache) => {
+        return caches.open(CACHE_NAME).then((cache) => {
           if (e.request.url.startsWith('http')) {
             cache.put(e.request, fetchRes.clone());
           }
@@ -78,17 +81,20 @@ self.addEventListener('fetch', (e) => {
     return;
   }
 
+  // Assets & JS: Network-first when online, fallback to cache
   e.respondWith(
-    caches.match(e.request).then((response) => {
-      return response || fetch(e.request).then((fetchRes) => {
-        return caches.open('habitflow-cache-v1.0').then((cache) => {
-          // Cache successful GET requests
+    fetch(e.request).then((fetchRes) => {
+      if (fetchRes && fetchRes.status === 200) {
+        const copy = fetchRes.clone();
+        caches.open(CACHE_NAME).then((cache) => {
           if (e.request.url.startsWith('http')) {
-            cache.put(e.request, fetchRes.clone());
+            cache.put(e.request, copy);
           }
-          return fetchRes;
         });
-      }).catch(() => {});
+      }
+      return fetchRes;
+    }).catch(() => {
+      return caches.match(e.request);
     })
   );
 });

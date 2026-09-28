@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAppContext } from '../store/AppContext';
 import { HabitCard } from './HabitCard';
-import { Plus, GripVertical } from 'lucide-react';
+import { Plus, GripVertical, Cloud, Smartphone, RefreshCw } from 'lucide-react';
 import { CalendarModal } from './CalendarModal';
 import { EditHabitModal } from './EditHabitModal';
 import { Habit } from '../types';
@@ -223,8 +223,21 @@ function DroppableCategory({ id, children, category }: { id: string, children: R
 }
 
 export function HabitsPage() {
-  const { habits, addHabit, reorderHabits, updateHabit } = useAppContext();
+  const { habits, addHabit, reorderHabits, updateHabit, user, connectAccountByUsername, syncStatus, forcePushToCloud } = useAppContext();
   const [newHabitName, setNewHabitName] = useState('');
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [connectMessage, setConnectMessage] = useState<string | null>(null);
+
+  const handleQuickSync = async (targetUsername = 'p.sujith_prasanth') => {
+    setIsConnecting(true);
+    setConnectMessage(null);
+    const res = await connectAccountByUsername(targetUsername);
+    setIsConnecting(false);
+    setConnectMessage(res.message);
+    if (!res.success) {
+      setTimeout(() => setConnectMessage(null), 6000);
+    }
+  };
   
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
   const [calendarHabit, setCalendarHabit] = useState<Habit | null>(null);
@@ -443,12 +456,70 @@ export function HabitsPage() {
           </div>
         )}
 
-        <header className="mb-8 p-4 rounded-2xl bg-white/40 dark:bg-black/30 backdrop-blur-md shadow-sm border border-white/20 dark:border-white/10 flex justify-between items-start gap-4">
+        <header className="mb-6 p-4 rounded-2xl bg-white/40 dark:bg-black/30 backdrop-blur-md shadow-sm border border-white/20 dark:border-white/10 flex justify-between items-start gap-4">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">HabitFlow</h1>
             <p className="text-gray-700 dark:text-gray-300 mt-1 font-medium">Build better habits, one step at a time.</p>
           </div>
         </header>
+
+        {/* Mobile App Sync Banner (when in Guest mode in other browsers/tabs) */}
+        {!user && (
+          <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-blue-500/10 border border-indigo-200/60 dark:border-indigo-800/40 backdrop-blur-md shadow-sm">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow shrink-0">
+                  <Smartphone className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-sm text-gray-900 dark:text-white">
+                    Existing Mobile App User?
+                  </h3>
+                  <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+                    Your 20 habits & streaks are stored in the cloud under <strong className="text-indigo-600 dark:text-indigo-400">@p.sujith_prasanth</strong>.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <button
+                  onClick={() => handleQuickSync('p.sujith_prasanth')}
+                  disabled={isConnecting}
+                  className="flex-1 sm:flex-none px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-xs font-semibold rounded-xl shadow transition-colors flex items-center justify-center gap-1.5"
+                >
+                  {isConnecting ? (
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Cloud className="w-3.5 h-3.5" />
+                  )}
+                  {isConnecting ? 'Syncing...' : 'Sync Mobile Habits'}
+                </button>
+              </div>
+            </div>
+            {connectMessage && (
+              <p className="mt-2.5 text-xs font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-50/50 dark:bg-indigo-950/30 p-2 rounded-lg">
+                {connectMessage}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* When connected, show verified cloud sync status */}
+        {user && (
+          <div className="mb-4 flex items-center justify-between px-3.5 py-2 rounded-xl bg-indigo-50/60 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/30 text-xs text-indigo-700 dark:text-indigo-300">
+            <span className="flex items-center gap-1.5 font-medium">
+              <Cloud className="w-3.5 h-3.5 text-indigo-500" />
+              Connected: @{user.username} ({habits.length} habits synced across all devices)
+            </span>
+            <button
+              onClick={() => forcePushToCloud()}
+              className="text-xs font-semibold hover:underline flex items-center gap-1 text-indigo-600 dark:text-indigo-400"
+            >
+              <RefreshCw className={syncStatus.status === 'syncing' ? "w-3 h-3 animate-spin" : "w-3 h-3"} />
+              Sync now
+            </button>
+          </div>
+        )}
 
         <form onSubmit={handleAdd} className="relative mb-6">
           <input

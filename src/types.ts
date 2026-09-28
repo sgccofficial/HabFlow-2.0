@@ -31,6 +31,8 @@ export interface Habit {
   legacyStreak?: number;
   legacyStreakDate?: string;
   legacyLongestStreak?: number;
+  completedAt?: Record<string, number>; // ISO format "YYYY-MM-DD" -> timestamp when marked done
+  uncompletedAt?: Record<string, number>; // ISO format "YYYY-MM-DD" -> timestamp when marked undone
   updatedAt?: number;
 }
 
@@ -40,7 +42,6 @@ export interface JournalEntry {
   date: string; // ISO format "YYYY-MM-DD"
   content: string;
   createdAt?: number;
-  updatedAt?: number;
 }
 
 export interface JournalSettings {
