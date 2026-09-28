@@ -441,8 +441,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                   const str = JSON.stringify(merged);
                   lastSyncedState.current.habits = str;
                   localStorage.setItem(userHabitsKey, str);
-                  // If local had dates or updates not yet on remote, persist back immediately
-                  if (str !== JSON.stringify(remoteData.habits)) {
+                  // Only write back to remote if local device had additional completion dates not yet on remote
+                  const remoteDatesCount = remoteData.habits.reduce((acc: number, h: Habit) => acc + (h.dates?.length || 0), 0);
+                  const mergedDatesCount = merged.reduce((acc: number, h: Habit) => acc + (h.dates?.length || 0), 0);
+                  if (mergedDatesCount > remoteDatesCount) {
                     setDoc(userDocRef, { habits: merged, lastUpdated: Date.now() }, { merge: true }).catch(() => {});
                   }
                   return merged;

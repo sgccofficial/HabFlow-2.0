@@ -1,6 +1,5 @@
 import express from "express";
 import path from "path";
-import { createServer as createViteServer } from "vite";
 import webpush from "web-push";
 import fs from "fs";
 import crypto from 'crypto';
@@ -201,6 +200,10 @@ if (!(e.statusCode === 410 || e.statusCode === 404 || e.statusCode === 403 || (e
   }
 }
 
+// Health check endpoints for Cloud Run deployment probes
+app.get('/healthz', (req, res) => res.status(200).send('OK'));
+app.get('/_ah/health', (req, res) => res.status(200).send('OK'));
+
 // Background worker to check notifications locally
 setInterval(processNotifications, 10000);
 
@@ -210,25 +213,38 @@ app.get('/api/cron', async (req, res) => {
   res.status(200).send('Processed');
 });
 
-async function startServer() {
-  if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
-    vapidKeys = {
-      publicKey: process.env.VAPID_PUBLIC_KEY,
-      privateKey: process.env.VAPID_PRIVATE_KEY
-    };
-  } else {
-    const docRef = doc(db, 'settings', 'vapidKeys');
-    const snap = await getDoc(docRef);
-    if (snap.exists()) {
-      vapidKeys = snap.data() as any;
+async function initVapidKeys() {
+  try {
+    if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+      vapidKeys = {
+        publicKey: process.env.VAPID_PUBLIC_KEY,
+        privateKey: process.env.VAPID_PRIVATE_KEY
+      };
     } else {
+      const docRef = doc(db, 'settings', 'vapidKeys');
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        vapidKeys = snap.data() as any;
+      } else {
+        vapidKeys = webpush.generateVAPIDKeys();
+        await setDoc(docRef, vapidKeys);
+      }
+    }
+    webpush.setVapidDetails('mailto:example@example.com', vapidKeys.publicKey, vapidKeys.privateKey);
+  } catch (e) {
+    console.warn("VAPID initialization notice:", e);
+    if (!vapidKeys) {
       vapidKeys = webpush.generateVAPIDKeys();
-      await setDoc(docRef, vapidKeys);
+      webpush.setVapidDetails('mailto:example@example.com', vapidKeys.publicKey, vapidKeys.privateKey);
     }
   }
-  webpush.setVapidDetails('mailto:example@example.com', vapidKeys.publicKey, vapidKeys.privateKey);
+}
 
-  if (process.env.NODE_ENV !== "production") {
+async function startServer() {
+  const isProduction = process.env.NODE_ENV === "production" || process.env.K_SERVICE !== undefined || Boolean(process.env.K_REVISION);
+
+  if (!isProduction) {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
@@ -259,6 +275,9 @@ async function startServer() {
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
+
+  // Initialize VAPID keys asynchronously in the background so HTTP server is immediately available
+  initVapidKeys().catch(() => {});
 }
 
 startServer();

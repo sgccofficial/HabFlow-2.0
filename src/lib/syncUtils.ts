@@ -43,42 +43,40 @@ export function mergeHabit(localH: Habit, remoteH: Habit): Habit {
     mergedUncompletedAt[d] = Math.max(mergedUncompletedAt[d] || 0, ts);
   }
 
-  const localDatesSet = new Set(localH.dates || []);
-  const remoteDatesSet = new Set(remoteH.dates || []);
+  // CRDT LWW-Element-Set: completed dates are unioned and only excluded if an explicit uncheck occurred strictly AFTER completion
+  const finalDatesSet = new Set<string>();
 
-  const allCandidateDates = new Set([
-    ...Object.keys(mergedCompletedAt),
-    ...Object.keys(mergedUncompletedAt),
-    ...localDatesSet,
-    ...remoteDatesSet
-  ]);
+  for (const d of (remoteH.dates || [])) {
+    const cTs = remoteCompletedAt[d] || remoteUpdated || 1;
+    const uTs = mergedUncompletedAt[d] || 0;
+    if (uTs > cTs) continue;
+    finalDatesSet.add(d);
+  }
 
-  // Include candidate dates from progress maps where progress exists
+  for (const d of (localH.dates || [])) {
+    const cTs = localCompletedAt[d] || localUpdated || 1;
+    const uTs = mergedUncompletedAt[d] || 0;
+    if (uTs > cTs) continue;
+    finalDatesSet.add(d);
+  }
+
+  // Also include dates where progress is recorded
   for (const [d, val] of Object.entries(localH.progress || {})) {
-    if (val > 0) allCandidateDates.add(d);
+    if (val > 0) {
+      const uTs = mergedUncompletedAt[d] || 0;
+      const cTs = mergedCompletedAt[d] || 1;
+      if (uTs <= cTs) finalDatesSet.add(d);
+    }
   }
   for (const [d, val] of Object.entries(remoteH.progress || {})) {
-    if (val > 0) allCandidateDates.add(d);
-  }
-
-  const finalDates: string[] = [];
-  for (const d of allCandidateDates) {
-    const cTs = mergedCompletedAt[d] || 0;
-    const uTs = mergedUncompletedAt[d] || 0;
-
-    // If explicitly uncompleted after or at the time of completion, exclude it
-    if (uTs > 0 && uTs >= cTs) {
-      continue;
-    }
-
-    // Otherwise, include if completion is newer, or if present in either device's dates/progress and never uncompleted
-    if (cTs > uTs) {
-      finalDates.push(d);
-    } else if (uTs === 0 && (localDatesSet.has(d) || remoteDatesSet.has(d) || (localH.progress?.[d] || 0) > 0 || (remoteH.progress?.[d] || 0) > 0)) {
-      finalDates.push(d);
+    if (val > 0) {
+      const uTs = mergedUncompletedAt[d] || 0;
+      const cTs = mergedCompletedAt[d] || 1;
+      if (uTs <= cTs) finalDatesSet.add(d);
     }
   }
-  finalDates.sort();
+
+  const finalDates = Array.from(finalDatesSet).sort();
 
   // 2. Progress map: merge by taking the maximum progress for each date,
   // while ensuring completed dates have at least the base progress or target

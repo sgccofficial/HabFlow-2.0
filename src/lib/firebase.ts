@@ -10,10 +10,9 @@ const auth = getAuth(app);
 let db: Firestore;
 try {
   db = initializeFirestore(app, {
-    localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+    localCache: persistentLocalCache({})
   }, firebaseConfig.firestoreDatabaseId || '(default)');
 } catch (e) {
-  console.warn("Falling back to standard getFirestore:", e);
   db = getFirestore(app, firebaseConfig.firestoreDatabaseId || '(default)');
 }
 
@@ -66,18 +65,5 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   console.error('Firestore Error: ', JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));
 }
-
-import { doc, getDocFromServer } from 'firebase/firestore';
-
-async function testConnection() {
-  try {
-    await getDocFromServer(doc(db, 'test', 'connection'));
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('the client is offline')) {
-      console.warn("Firebase client is currently offline or unreachable.");
-    }
-  }
-}
-testConnection();
 
 export { app, auth, db };
