@@ -241,17 +241,13 @@ async function initVapidKeys() {
 }
 
 async function startServer() {
-  const isProduction = process.env.NODE_ENV === "production" || process.env.K_SERVICE !== undefined || Boolean(process.env.K_REVISION);
+  const distPath = path.join(process.cwd(), 'dist');
+  const distIndexHtml = path.join(distPath, 'index.html');
+  const hasDist = fs.existsSync(distIndexHtml);
 
-  if (!isProduction) {
-    const { createServer: createViteServer } = await import("vite");
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), 'dist');
+  const isProduction = (process.env.NODE_ENV === "production" || process.env.K_SERVICE !== undefined || Boolean(process.env.K_REVISION));
+
+  if (isProduction && hasDist) {
     app.use(express.static(distPath, {
       setHeaders: (res, filePath) => {
         if (filePath.endsWith('index.html') || filePath.endsWith('sw.js')) {
@@ -268,8 +264,16 @@ async function startServer() {
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');
-      res.sendFile(path.join(distPath, 'index.html'));
+      res.sendFile(distIndexHtml);
     });
+  } else {
+    // If running in development or if dist/ is not yet built, mount Vite dev middleware
+    const { createServer: createViteServer } = await import("vite");
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: "spa",
+    });
+    app.use(vite.middlewares);
   }
   
   app.listen(PORT, "0.0.0.0", () => {

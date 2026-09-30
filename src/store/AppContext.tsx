@@ -435,31 +435,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               const remoteData = initialSnap.data();
 
               if (remoteData.habits && Array.isArray(remoteData.habits)) {
-                setHabits(prevHabits => {
-                  const merged = mergeHabitLists(prevHabits, remoteData.habits);
-                  habitsRef.current = merged;
-                  const str = JSON.stringify(merged);
-                  lastSyncedState.current.habits = str;
-                  localStorage.setItem(userHabitsKey, str);
-                  // Only write back to remote if local device had additional completion dates not yet on remote
-                  const remoteDatesCount = remoteData.habits.reduce((acc: number, h: Habit) => acc + (h.dates?.length || 0), 0);
-                  const mergedDatesCount = merged.reduce((acc: number, h: Habit) => acc + (h.dates?.length || 0), 0);
-                  if (mergedDatesCount > remoteDatesCount) {
-                    setDoc(userDocRef, { habits: merged, lastUpdated: Date.now() }, { merge: true }).catch(() => {});
-                  }
-                  return merged;
-                });
+                const cloudHabits = remoteData.habits;
+                habitsRef.current = cloudHabits;
+                const str = JSON.stringify(cloudHabits);
+                lastSyncedState.current.habits = str;
+                localStorage.setItem(userHabitsKey, str);
+                setHabits(cloudHabits);
               }
 
               if (remoteData.journal && Array.isArray(remoteData.journal)) {
-                setJournal(prevJournal => {
-                  const merged = mergeJournalLists(prevJournal, remoteData.journal);
-                  journalRef.current = merged;
-                  const str = JSON.stringify(merged);
-                  lastSyncedState.current.journal = str;
-                  localStorage.setItem(userJournalKey, str);
-                  return merged;
-                });
+                const cloudJournal = remoteData.journal;
+                journalRef.current = cloudJournal;
+                const str = JSON.stringify(cloudJournal);
+                lastSyncedState.current.journal = str;
+                localStorage.setItem(userJournalKey, str);
+                setJournal(cloudJournal);
               }
 
               if (remoteData.journalSettings) {
@@ -527,31 +517,25 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 const data = userDoc.data();
 
                 if (data.habits && Array.isArray(data.habits)) {
-                  setHabits(prevHabits => {
-                    const merged = mergeHabitLists(prevHabits, data.habits);
-                    const str = JSON.stringify(merged);
-                    if (str !== JSON.stringify(prevHabits)) {
-                      habitsRef.current = merged;
-                      lastSyncedState.current.habits = str;
-                      localStorage.setItem(userHabitsKey, str);
-                      return merged;
-                    }
-                    return prevHabits;
-                  });
+                  const cloudHabits = data.habits;
+                  const str = JSON.stringify(cloudHabits);
+                  if (str !== JSON.stringify(habitsRef.current)) {
+                    habitsRef.current = cloudHabits;
+                    lastSyncedState.current.habits = str;
+                    localStorage.setItem(userHabitsKey, str);
+                    setHabits(cloudHabits);
+                  }
                 }
 
                 if (data.journal && Array.isArray(data.journal)) {
-                  setJournal(prevJournal => {
-                    const merged = mergeJournalLists(prevJournal, data.journal);
-                    const str = JSON.stringify(merged);
-                    if (str !== JSON.stringify(prevJournal)) {
-                      journalRef.current = merged;
-                      lastSyncedState.current.journal = str;
-                      localStorage.setItem(userJournalKey, str);
-                      return merged;
-                    }
-                    return prevJournal;
-                  });
+                  const cloudJournal = data.journal;
+                  const str = JSON.stringify(cloudJournal);
+                  if (str !== JSON.stringify(journalRef.current)) {
+                    journalRef.current = cloudJournal;
+                    lastSyncedState.current.journal = str;
+                    localStorage.setItem(userJournalKey, str);
+                    setJournal(cloudJournal);
+                  }
                 }
 
                 if (data.journalSettings) {
@@ -619,35 +603,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!user || !user.id) return;
     try {
       const { db } = await import('../lib/firebase');
-      const { doc, getDoc, setDoc } = await import('firebase/firestore');
+      const { doc, getDoc } = await import('firebase/firestore');
       const userDocRef = doc(db, 'users', user.id);
       const snap = await getDoc(userDocRef);
-
-      let currentHabits = habitsRef.current;
-      let currentJournal = journalRef.current;
-      let currentJS = journalSettingsRef.current;
-      let currentAS = appSettingsRef.current;
 
       if (snap.exists()) {
         const remoteData = snap.data();
         if (remoteData.habits && Array.isArray(remoteData.habits)) {
-          currentHabits = mergeHabitLists(habitsRef.current, remoteData.habits);
-          setHabits(currentHabits);
-          habitsRef.current = currentHabits;
-          const str = JSON.stringify(currentHabits);
+          const cloudHabits = remoteData.habits;
+          setHabits(cloudHabits);
+          habitsRef.current = cloudHabits;
+          const str = JSON.stringify(cloudHabits);
           localStorage.setItem(getStorageKey('habitflow_habits', user), str);
           lastSyncedState.current.habits = str;
         }
         if (remoteData.journal && Array.isArray(remoteData.journal)) {
-          currentJournal = mergeJournalLists(journalRef.current, remoteData.journal);
-          setJournal(currentJournal);
-          journalRef.current = currentJournal;
-          const str = JSON.stringify(currentJournal);
+          const cloudJournal = remoteData.journal;
+          setJournal(cloudJournal);
+          journalRef.current = cloudJournal;
+          const str = JSON.stringify(cloudJournal);
           localStorage.setItem(getStorageKey('habitflow_journal', user), str);
           lastSyncedState.current.journal = str;
         }
         if (remoteData.journalSettings) {
-          currentJS = { ...journalSettingsRef.current, ...remoteData.journalSettings };
+          const currentJS = { ...journalSettingsRef.current, ...remoteData.journalSettings };
           setJournalSettings(currentJS);
           journalSettingsRef.current = currentJS;
           const str = JSON.stringify(currentJS);
@@ -655,25 +634,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           lastSyncedState.current.journalSettings = str;
         }
         if (remoteData.appSettings) {
-          currentAS = { ...appSettingsRef.current, ...remoteData.appSettings };
+          const currentAS = { ...appSettingsRef.current, ...remoteData.appSettings };
           setAppSettings(currentAS);
           appSettingsRef.current = currentAS;
           const str = JSON.stringify(currentAS);
           localStorage.setItem(getStorageKey('habitflow_app_settings', user), str);
           lastSyncedState.current.appSettings = str;
         }
+        const now = Date.now();
+        setSyncStatus('synced');
+        setLastSyncedAt(now);
       }
-
-      // Persist the unified merged state back to Firestore silently
-      const now = Date.now();
-      const cleanData: any = {
-        habits: currentHabits,
-        journal: currentJournal,
-        journalSettings: currentJS,
-        appSettings: currentAS,
-        lastUpdated: now
-      };
-      await setDoc(userDocRef, cleanData, { merge: true });
     } catch (e) {
       console.warn("Silent sync attempt:", e);
     }
@@ -782,12 +753,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // When the user signs in from any device, merge any local device progress non-destructively with cloud data
+  // When the user signs in from any device, load the account's cloud data directly
   const signInAccount = async (username: string, pwd: string) => {
     try {
       const { signInWithEmailAndPassword } = await import('firebase/auth');
       const { auth, db } = await import('../lib/firebase');
-      const { doc, getDoc, setDoc } = await import('firebase/firestore');
+      const { doc, getDoc } = await import('firebase/firestore');
 
       const email = `${username.toLowerCase()}@habitflow.local`;
       const userCredential = await signInWithEmailAndPassword(auth, email, pwd);
@@ -804,35 +775,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const cloudJS: Record<string, JournalSettings> = data.journalSettings || {};
       const cloudAS: JournalSettings = data.appSettings || {};
 
-      // Check for any local device habits (e.g. from guest mode or offline device usage)
-      const cachedUserHabitsStr = localStorage.getItem(`habitflow_habits_${uid}`);
-      const localHabitsStr = localStorage.getItem('habitflow_local_habits');
-      const existingDeviceHabits: Habit[] = cachedUserHabitsStr 
-        ? JSON.parse(cachedUserHabitsStr) 
-        : (localHabitsStr ? JSON.parse(localHabitsStr) : []);
-
-      // Non-destructively merge device habits with cloud habits so no completions are ever lost
-      const unifiedHabits = mergeHabitLists(existingDeviceHabits, cloudHabits);
-
-      const cachedJournalStr = localStorage.getItem(`habitflow_journal_${uid}`);
-      const localJournalStr = localStorage.getItem('habitflow_local_journal');
-      const existingDeviceJournal: JournalEntry[] = cachedJournalStr 
-        ? JSON.parse(cachedJournalStr) 
-        : (localJournalStr ? JSON.parse(localJournalStr) : []);
-      const unifiedJournal = mergeJournalLists(existingDeviceJournal, cloudJournal);
-
-      // If local device had new dates/progress not yet on cloud, persist immediately to Firestore
-      if (JSON.stringify(unifiedHabits) !== JSON.stringify(cloudHabits) || JSON.stringify(unifiedJournal) !== JSON.stringify(cloudJournal)) {
-        await setDoc(doc(db, 'users', uid), { 
-          habits: unifiedHabits, 
-          journal: unifiedJournal, 
-          lastUpdated: Date.now() 
-        }, { merge: true });
-      }
-
-      // Write to user's storage keys
-      localStorage.setItem(`habitflow_habits_${uid}`, JSON.stringify(unifiedHabits));
-      localStorage.setItem(`habitflow_journal_${uid}`, JSON.stringify(unifiedJournal));
+      // Write directly to user's storage keys
+      localStorage.setItem(`habitflow_habits_${uid}`, JSON.stringify(cloudHabits));
+      localStorage.setItem(`habitflow_journal_${uid}`, JSON.stringify(cloudJournal));
       localStorage.setItem(`habitflow_journal_settings_${uid}`, JSON.stringify(cloudJS));
       localStorage.setItem(`habitflow_app_settings_${uid}`, JSON.stringify(cloudAS));
 
@@ -845,14 +790,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('habitflow_current_user', JSON.stringify(userInfo));
 
       lastSyncedState.current = {
-        habits: JSON.stringify(unifiedHabits),
-        journal: JSON.stringify(unifiedJournal),
+        habits: JSON.stringify(cloudHabits),
+        journal: JSON.stringify(cloudJournal),
         journalSettings: JSON.stringify(cloudJS),
         appSettings: JSON.stringify(cloudAS)
       };
 
-      setHabits(unifiedHabits);
-      setJournal(unifiedJournal);
+      setHabits(cloudHabits);
+      setJournal(cloudJournal);
       setJournalSettings(cloudJS);
       setAppSettings(cloudAS);
       setUser(userInfo);
@@ -1152,18 +1097,46 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         reminderTime: habitData.reminderTime
       }]
     };
-    setHabits(prev => [...prev, newHabit]);
+    setHabits(prev => {
+      const nextHabits = [...prev, newHabit];
+      habitsRef.current = nextHabits;
+      const key = getStorageKey('habitflow_habits', userRef.current);
+      localStorage.setItem(key, JSON.stringify(nextHabits));
+      if (userRef.current && userRef.current.id) {
+        flushSaveToFirestore(nextHabits);
+      }
+      return nextHabits;
+    });
   };
 
   const updateHabit = (id: string, updates: Partial<Omit<Habit, 'id' | 'created'>>) => {
     const now = Date.now();
     lastLocalEditTime.current = now;
-    setHabits(prev => prev.map(h => h.id === id ? { ...h, ...updates, updatedAt: now } : h));
+    setHabits(prev => {
+      const nextHabits = prev.map(h => h.id === id ? { ...h, ...updates, updatedAt: now } : h);
+      habitsRef.current = nextHabits;
+      const key = getStorageKey('habitflow_habits', userRef.current);
+      localStorage.setItem(key, JSON.stringify(nextHabits));
+      if (userRef.current && userRef.current.id) {
+        flushSaveToFirestore(nextHabits);
+      }
+      return nextHabits;
+    });
   };
 
   const deleteHabit = (id: string) => {
-    lastLocalEditTime.current = Date.now();
-    setHabits(prev => prev.filter(h => h.id !== id));
+    const now = Date.now();
+    lastLocalEditTime.current = now;
+    setHabits(prev => {
+      const nextHabits = prev.filter(h => h.id !== id);
+      habitsRef.current = nextHabits;
+      const key = getStorageKey('habitflow_habits', userRef.current);
+      localStorage.setItem(key, JSON.stringify(nextHabits));
+      if (userRef.current && userRef.current.id) {
+        flushSaveToFirestore(nextHabits);
+      }
+      return nextHabits;
+    });
     setJournal(prev => prev.filter(j => j.habitId !== id));
     if (activeHabitId === id) setActiveHabitId(null);
   };
@@ -1171,7 +1144,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const reorderHabits = (newHabits: Habit[]) => {
     const now = Date.now();
     lastLocalEditTime.current = now;
-    setHabits(newHabits.map(h => ({ ...h, updatedAt: now })));
+    const nextHabits = newHabits.map(h => ({ ...h, updatedAt: now }));
+    habitsRef.current = nextHabits;
+    setHabits(nextHabits);
+    const key = getStorageKey('habitflow_habits', userRef.current);
+    localStorage.setItem(key, JSON.stringify(nextHabits));
+    if (userRef.current && userRef.current.id) {
+      flushSaveToFirestore(nextHabits);
+    }
   };
 
   const toggleHabitDate = (id: string, date: string) => {
@@ -1309,17 +1289,44 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       id: crypto.randomUUID(),
       createdAt: Date.now()
     };
-    setJournal(prev => [...prev, entry]);
+    setJournal(prev => {
+      const next = [...prev, entry];
+      journalRef.current = next;
+      const key = getStorageKey('habitflow_journal', userRef.current);
+      localStorage.setItem(key, JSON.stringify(next));
+      if (userRef.current && userRef.current.id) {
+        flushSaveToFirestore(undefined, next);
+      }
+      return next;
+    });
   };
 
   const updateJournalEntry = (id: string, content: string) => {
     lastLocalEditTime.current = Date.now();
-    setJournal(prev => prev.map(j => j.id === id ? { ...j, content } : j));
+    setJournal(prev => {
+      const next = prev.map(j => j.id === id ? { ...j, content } : j);
+      journalRef.current = next;
+      const key = getStorageKey('habitflow_journal', userRef.current);
+      localStorage.setItem(key, JSON.stringify(next));
+      if (userRef.current && userRef.current.id) {
+        flushSaveToFirestore(undefined, next);
+      }
+      return next;
+    });
   };
 
   const deleteJournalEntry = (id: string) => {
     lastLocalEditTime.current = Date.now();
-    setJournal(prev => prev.filter(j => j.id !== id));
+    setJournal(prev => {
+      const next = prev.filter(j => j.id !== id);
+      journalRef.current = next;
+      const key = getStorageKey('habitflow_journal', userRef.current);
+      localStorage.setItem(key, JSON.stringify(next));
+      if (userRef.current && userRef.current.id) {
+        flushSaveToFirestore(undefined, next);
+      }
+      return next;
+    });
   };
 
   return (
