@@ -41,9 +41,10 @@ self.addEventListener('fetch', (event) => {
 
   // Let Firebase, Firestore, Google APIs, and auth requests pass straight through (Firestore has its own IndexedDB offline cache)
   if (
-    url.origin.includes('firestore.googleapis.com') ||
-    url.origin.includes('identitytoolkit.googleapis.com') ||
-    url.origin.includes('securetoken.googleapis.com') ||
+    url.origin.includes('googleapis.com') ||
+    url.origin.includes('firebaseapp.com') ||
+    url.origin.includes('google.com') ||
+    url.origin.includes('gstatic.com') ||
     url.pathname.startsWith('/api/')
   ) {
     return;

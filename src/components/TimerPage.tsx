@@ -46,6 +46,8 @@ export function TimerPage() {
   const [inputValue, setInputValue] = useState(formatTime(20 * 60));
   
   // High-precision clock refs
+  const startedAtRef = useRef<number | null>(null);
+  const initialRemainingRef = useRef<number>(20 * 60);
   const targetEndTimeRef = useRef<number | null>(null);
   const durationSecsRef = useRef<number>(20 * 60);
   const remainingSecsRef = useRef<number>(20 * 60);
@@ -194,11 +196,15 @@ export function TimerPage() {
     remSecs: number,
     durSecs: number,
     loggedSecs: number,
-    targetEnd: number | null = null
+    startedAt: number | null = null,
+    initialRemaining: number | null = null
   ) => {
     try {
+      const targetEnd = running && startedAt && initialRemaining ? startedAt + (initialRemaining * 1000) : null;
       const stateObj = {
         isRunning: running,
+        startedAt: startedAt,
+        initialRemainingAtStart: initialRemaining,
         targetEndTime: targetEnd,
         remainingSecs: remSecs,
         durationSecs: durSecs,
@@ -230,6 +236,7 @@ export function TimerPage() {
   const handleComplete = () => {
     setIsRunning(false);
     isRunningRef.current = false;
+    startedAtRef.current = null;
     targetEndTimeRef.current = null;
     workerRef.current?.postMessage('STOP');
     releaseWakeLock();
@@ -238,7 +245,7 @@ export function TimerPage() {
     // Ensure all duration progress is committed
     commitProgress(durationSecsRef.current);
 
-    saveCountdownState(false, 0, durationSecsRef.current, durationSecsRef.current, null);
+    saveCountdownState(false, 0, durationSecsRef.current, durationSecsRef.current, null, null);
     playAlarm();
     setCompletedModalOpen(true);
 
@@ -264,19 +271,32 @@ export function TimerPage() {
     } catch (e) {}
   };
 
-  // Core clock-anchored tick function
+  // Core clock-anchored tick function: calculates remaining time directly based on the time when timer actually started
   const handleTick = () => {
     // Countdown check
-    if (isRunningRef.current && targetEndTimeRef.current !== null) {
+    if (isRunningRef.current && (startedAtRef.current !== null || targetEndTimeRef.current !== null)) {
       const now = Date.now();
-      const leftMs = targetEndTimeRef.current - now;
-      const leftSecs = Math.max(0, Math.ceil(leftMs / 1000));
+      let leftSecs = 0;
+      let totalElapsed = 0;
+
+      if (startedAtRef.current !== null) {
+        const elapsedSecsSinceStart = Math.max(0, Math.floor((now - startedAtRef.current) / 1000));
+        leftSecs = Math.max(0, initialRemainingRef.current - elapsedSecsSinceStart);
+        totalElapsed = Math.min(
+          durationSecsRef.current,
+          (durationSecsRef.current - initialRemainingRef.current) + elapsedSecsSinceStart
+        );
+      } else if (targetEndTimeRef.current !== null) {
+        const leftMs = targetEndTimeRef.current - now;
+        leftSecs = Math.max(0, Math.ceil(leftMs / 1000));
+        totalElapsed = Math.max(0, durationSecsRef.current - leftSecs);
+      }
       
       setRemainingSecs(leftSecs);
       remainingSecsRef.current = leftSecs;
+      setInputValue(formatTime(leftSecs));
 
-      const elapsed = Math.max(0, durationSecsRef.current - leftSecs);
-      commitProgress(elapsed);
+      commitProgress(totalElapsed);
 
       if (leftSecs <= 0) {
         handleComplete();
@@ -392,40 +412,50 @@ export function TimerPage() {
           durationSecsRef.current = dur;
           lastLoggedSecsRef.current = parsed.lastLoggedSecs || 0;
 
-          if (parsed.isRunning && parsed.targetEndTime) {
+          if (parsed.isRunning && (parsed.startedAt || parsed.targetEndTime)) {
+            const initialRemaining = parsed.initialRemainingAtStart ?? parsed.remainingSecs ?? dur;
+            const startedAt = parsed.startedAt || (parsed.targetEndTime - initialRemaining * 1000);
             const now = Date.now();
-            if (now < parsed.targetEndTime) {
-              const left = Math.max(0, Math.ceil((parsed.targetEndTime - now) / 1000));
+            const elapsedSecsSinceStart = Math.max(0, Math.floor((now - startedAt) / 1000));
+            const left = Math.max(0, initialRemaining - elapsedSecsSinceStart);
+
+            if (left > 0) {
               setRemainingSecs(left);
               remainingSecsRef.current = left;
+              startedAtRef.current = startedAt;
+              initialRemainingRef.current = initialRemaining;
+              targetEndTimeRef.current = startedAt + initialRemaining * 1000;
               setInputValue(formatTime(left));
               setIsRunning(true);
               isRunningRef.current = true;
-              targetEndTimeRef.current = parsed.targetEndTime;
               
-              // Credit any progress made while inactive
-              const elapsed = Math.max(0, dur - left);
-              commitProgress(elapsed);
+              // Credit any progress made while inactive / in other apps
+              const totalElapsed = Math.min(dur, (dur - initialRemaining) + elapsedSecsSinceStart);
+              commitProgress(totalElapsed);
 
               workerRef.current?.postMessage('START');
               requestWakeLock();
             } else {
-              // Expired while phone was in pocket / locked / browser tab suspended!
+              // Expired while user was in other apps / phone locked / JS killed!
               setRemainingSecs(0);
               remainingSecsRef.current = 0;
+              startedAtRef.current = null;
+              initialRemainingRef.current = 0;
+              targetEndTimeRef.current = null;
               setInputValue(formatTime(0));
               setIsRunning(false);
               isRunningRef.current = false;
-              targetEndTimeRef.current = null;
               commitProgress(dur);
               setCompletedModalOpen(true);
-              saveCountdownState(false, 0, dur, dur, null);
+              saveCountdownState(false, 0, dur, dur, null, null);
               playAlarm();
             }
           } else {
             const left = parsed.remainingSecs !== undefined ? parsed.remainingSecs : dur;
             setRemainingSecs(left);
             remainingSecsRef.current = left;
+            startedAtRef.current = null;
+            initialRemainingRef.current = left;
             setInputValue(formatTime(left));
           }
         }
@@ -525,6 +555,8 @@ export function TimerPage() {
     const now = Date.now();
     const targetEnd = now + currentRem * 1000;
     
+    startedAtRef.current = now;
+    initialRemainingRef.current = currentRem;
     targetEndTimeRef.current = targetEnd;
     durationSecsRef.current = durationSecs;
     remainingSecsRef.current = currentRem;
@@ -533,7 +565,7 @@ export function TimerPage() {
     setRemainingSecs(currentRem);
     setInputValue(formatTime(currentRem));
 
-    saveCountdownState(true, currentRem, durationSecs, lastLoggedSecsRef.current, targetEnd);
+    saveCountdownState(true, currentRem, durationSecs, lastLoggedSecsRef.current, now, currentRem);
 
     workerRef.current?.postMessage('START');
     requestWakeLock();
@@ -576,14 +608,19 @@ export function TimerPage() {
   const handlePause = () => {
     const now = Date.now();
     let currentLeft = remainingSecs;
-    if (targetEndTimeRef.current) {
+    if (startedAtRef.current !== null) {
+      const elapsedSecsSinceStart = Math.max(0, Math.floor((now - startedAtRef.current) / 1000));
+      currentLeft = Math.max(0, initialRemainingRef.current - elapsedSecsSinceStart);
+    } else if (targetEndTimeRef.current) {
       currentLeft = Math.max(0, Math.ceil((targetEndTimeRef.current - now) / 1000));
     }
+    startedAtRef.current = null;
     targetEndTimeRef.current = null;
     isRunningRef.current = false;
     setIsRunning(false);
     setRemainingSecs(currentLeft);
     remainingSecsRef.current = currentLeft;
+    initialRemainingRef.current = currentLeft;
     setInputValue(formatTime(currentLeft));
 
     if (!swIsRunningRef.current) {
@@ -594,10 +631,12 @@ export function TimerPage() {
 
     const elapsed = Math.max(0, durationSecs - currentLeft);
     commitProgress(elapsed);
-    saveCountdownState(false, currentLeft, durationSecs, lastLoggedSecsRef.current, null);
+    saveCountdownState(false, currentLeft, durationSecs, lastLoggedSecsRef.current, null, currentLeft);
   };
   
   const handleReset = () => {
+    startedAtRef.current = null;
+    initialRemainingRef.current = durationSecs;
     targetEndTimeRef.current = null;
     isRunningRef.current = false;
     setIsRunning(false);
@@ -611,7 +650,7 @@ export function TimerPage() {
       releaseWakeLock();
     }
     clearServerTimer();
-    saveCountdownState(false, durationSecs, durationSecs, 0, null);
+    saveCountdownState(false, durationSecs, durationSecs, 0, null, durationSecs);
   };
 
   // Stopwatch Handlers
