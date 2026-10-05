@@ -131,7 +131,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     appSettings: JSON.stringify(appSettings)
   });
 
-  // Dedicated immediate flush function for saving to Firestore without dropping writes when backgrounded
+  // Dedicated immediate flush function for saving to Firestore without dropping writes when backgrounded or offline
+  const hasPendingOfflineWrites = useRef<boolean>(() => {
+    return localStorage.getItem('habitflow_pending_offline_sync') === 'true';
+  });
+
   const flushSaveToFirestore = async (
     targetHabits = habitsRef.current,
     targetJournal = journalRef.current,
@@ -146,14 +150,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       saveTimeoutRef.current = null;
     }
 
+    const habitsStr = JSON.stringify(targetHabits);
+    const journalStr = JSON.stringify(targetJournal);
+    const jsStr = JSON.stringify(targetJS);
+    const asStr = JSON.stringify(targetAS);
+
+    // Save immediately to local persistent storage for 100% offline security
+    localStorage.setItem(getStorageKey('habitflow_habits', targetUser), habitsStr);
+    localStorage.setItem(getStorageKey('habitflow_journal', targetUser), journalStr);
+    localStorage.setItem(getStorageKey('habitflow_journal_settings', targetUser), jsStr);
+    localStorage.setItem(getStorageKey('habitflow_app_settings', targetUser), asStr);
+
     try {
       const { db } = await import('../lib/firebase');
       const { doc, setDoc } = await import('firebase/firestore');
-
-      const habitsStr = JSON.stringify(targetHabits);
-      const journalStr = JSON.stringify(targetJournal);
-      const jsStr = JSON.stringify(targetJS);
-      const asStr = JSON.stringify(targetAS);
 
       lastSyncedState.current = {
         habits: habitsStr,
@@ -172,13 +182,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       };
 
       await setDoc(doc(db, 'users', targetUser.id), cleanData, { merge: true });
-      const storageKey = getStorageKey('habitflow_habits', targetUser);
-      localStorage.setItem(storageKey, habitsStr);
+      hasPendingOfflineWrites.current = false;
+      localStorage.removeItem('habitflow_pending_offline_sync');
       setSyncStatus('synced');
       setLastSyncedAt(now);
       localStorage.setItem('habitflow_last_synced_at', String(now));
     } catch (err) {
-      console.warn("Silent save to Firestore warning:", err);
+      // Running offline: flag pending sync so when connection is back, it syncs promptly
+      console.warn("Silent save to Firestore warning (stored offline):", err);
+      hasPendingOfflineWrites.current = true;
+      localStorage.setItem('habitflow_pending_offline_sync', 'true');
+      setSyncStatus('idle');
     }
   };
 
@@ -430,73 +444,80 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           // Phase 1: Fast initial fetch & CRDT merge
           try {
             setSyncStatus('syncing');
-            const initialSnap = await getDoc(userDocRef);
-            if (initialSnap.exists()) {
-              const remoteData = initialSnap.data();
 
-              if (remoteData.habits && Array.isArray(remoteData.habits)) {
-                const cloudHabits = remoteData.habits;
-                habitsRef.current = cloudHabits;
-                const str = JSON.stringify(cloudHabits);
-                lastSyncedState.current.habits = str;
-                localStorage.setItem(userHabitsKey, str);
-                setHabits(cloudHabits);
-              }
-
-              if (remoteData.journal && Array.isArray(remoteData.journal)) {
-                const cloudJournal = remoteData.journal;
-                journalRef.current = cloudJournal;
-                const str = JSON.stringify(cloudJournal);
-                lastSyncedState.current.journal = str;
-                localStorage.setItem(userJournalKey, str);
-                setJournal(cloudJournal);
-              }
-
-              if (remoteData.journalSettings) {
-                setJournalSettings(prev => {
-                  const merged = { ...prev, ...remoteData.journalSettings };
-                  journalSettingsRef.current = merged;
-                  const str = JSON.stringify(merged);
-                  lastSyncedState.current.journalSettings = str;
-                  localStorage.setItem(userJSettingsKey, str);
-                  return merged;
-                });
-              }
-
-              if (remoteData.appSettings) {
-                setAppSettings(prev => {
-                  const merged = { ...prev, ...remoteData.appSettings };
-                  appSettingsRef.current = merged;
-                  const str = JSON.stringify(merged);
-                  lastSyncedState.current.appSettings = str;
-                  localStorage.setItem(userASettingsKey, str);
-                  return merged;
-                });
-              }
-
-              const now = Date.now();
-              setSyncStatus('synced');
-              setLastSyncedAt(now);
-              localStorage.setItem('habitflow_last_synced_at', String(now));
+            // If this device made writes while offline, preserve them and push them to the cloud first
+            const isPendingOffline = hasPendingOfflineWrites.current || localStorage.getItem('habitflow_pending_offline_sync') === 'true';
+            if (isPendingOffline) {
+              await flushSaveToFirestore(currentH, currentJ, currentJS, currentAS);
             } else {
-              // Remote document does not exist yet; initialize with local data
-              const now = Date.now();
-              const initialData = {
-                id: user.id,
-                username: user.username,
-                name: user.name || user.username,
-                photoURL: user.photoURL || '',
-                habits: currentH,
-                journal: currentJ,
-                journalSettings: currentJS,
-                appSettings: currentAS,
-                createdAt: now,
-                lastUpdated: now
-              };
-              await setDoc(userDocRef, initialData, { merge: true });
-              setSyncStatus('synced');
-              setLastSyncedAt(now);
-              localStorage.setItem('habitflow_last_synced_at', String(now));
+              const initialSnap = await getDoc(userDocRef);
+              if (initialSnap.exists()) {
+                const remoteData = initialSnap.data();
+
+                if (remoteData.habits && Array.isArray(remoteData.habits)) {
+                  const cloudHabits = remoteData.habits;
+                  habitsRef.current = cloudHabits;
+                  const str = JSON.stringify(cloudHabits);
+                  lastSyncedState.current.habits = str;
+                  localStorage.setItem(userHabitsKey, str);
+                  setHabits(cloudHabits);
+                }
+
+                if (remoteData.journal && Array.isArray(remoteData.journal)) {
+                  const cloudJournal = remoteData.journal;
+                  journalRef.current = cloudJournal;
+                  const str = JSON.stringify(cloudJournal);
+                  lastSyncedState.current.journal = str;
+                  localStorage.setItem(userJournalKey, str);
+                  setJournal(cloudJournal);
+                }
+
+                if (remoteData.journalSettings) {
+                  setJournalSettings(prev => {
+                    const merged = { ...prev, ...remoteData.journalSettings };
+                    journalSettingsRef.current = merged;
+                    const str = JSON.stringify(merged);
+                    lastSyncedState.current.journalSettings = str;
+                    localStorage.setItem(userJSettingsKey, str);
+                    return merged;
+                  });
+                }
+
+                if (remoteData.appSettings) {
+                  setAppSettings(prev => {
+                    const merged = { ...prev, ...remoteData.appSettings };
+                    appSettingsRef.current = merged;
+                    const str = JSON.stringify(merged);
+                    lastSyncedState.current.appSettings = str;
+                    localStorage.setItem(userASettingsKey, str);
+                    return merged;
+                  });
+                }
+
+                const now = Date.now();
+                setSyncStatus('synced');
+                setLastSyncedAt(now);
+                localStorage.setItem('habitflow_last_synced_at', String(now));
+              } else {
+                // Remote document does not exist yet; initialize with local data
+                const now = Date.now();
+                const initialData = {
+                  id: user.id,
+                  username: user.username,
+                  name: user.name || user.username,
+                  photoURL: user.photoURL || '',
+                  habits: currentH,
+                  journal: currentJ,
+                  journalSettings: currentJS,
+                  appSettings: currentAS,
+                  createdAt: now,
+                  lastUpdated: now
+                };
+                await setDoc(userDocRef, initialData, { merge: true });
+                setSyncStatus('synced');
+                setLastSyncedAt(now);
+                localStorage.setItem('habitflow_last_synced_at', String(now));
+              }
             }
           } catch (fetchErr) {
             console.warn("Initial user doc fetch warning:", fetchErr);
@@ -603,8 +624,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!user || !user.id) return;
     try {
       const { db } = await import('../lib/firebase');
-      const { doc, getDoc } = await import('firebase/firestore');
+      const { doc, getDoc, setDoc } = await import('firebase/firestore');
       const userDocRef = doc(db, 'users', user.id);
+
+      // If we modified data while offline, promptly flush our local changes up to the cloud!
+      const isPending = hasPendingOfflineWrites.current || localStorage.getItem('habitflow_pending_offline_sync') === 'true';
+      if (isPending) {
+        await flushSaveToFirestore();
+        return;
+      }
+
       const snap = await getDoc(userDocRef);
 
       if (snap.exists()) {
