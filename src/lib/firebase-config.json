@@ -6,5 +6,7 @@
   "firestoreDatabaseId": "ai-studio-habitflow-9701ef34-18b3-4365-93b7-2b69882dce5c",
   "storageBucket": "gen-lang-client-0781807082.firebasestorage.app",
   "messagingSenderId": "888931949587",
-  "measurementId": ""
+  "measurementId": "",
+  "oAuthClientId": "888931949587-dr51l83kbj9jpjddcommv4s7ivofkh5i.apps.googleusercontent.com",
+  "recaptchaSiteKey": ""
 }
