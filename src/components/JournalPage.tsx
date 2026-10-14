@@ -262,14 +262,12 @@ export function JournalPage() {
                     </div>
                   ) : (
                     <>
-                      <div className="flex flex-col gap-1 mb-2">
+                      <div className="flex flex-wrap items-center gap-2 mb-2 pr-16">
                         <span className="text-xs font-medium text-gray-500">{entry.createdAt ? format(new Date(entry.createdAt), 'MMM d, yyyy • h:mm a') : format(new Date(entry.date + 'T12:00:00'), 'MMM d, yyyy')}</span>
                         {habit && (
-                          <div className="w-fit">
-                            <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md whitespace-normal break-words" style={{ backgroundColor: habit.color + '20', color: habit.color }}>
-                              {habit.name}
-                            </span>
-                          </div>
+                          <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md" style={{ backgroundColor: habit.color + '20', color: habit.color }}>
+                            {habit.name}
+                          </span>
                         )}
                       </div>
                       <div 
