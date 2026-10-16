@@ -1361,12 +1361,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const uncompletedAt = { ...(h.uncompletedAt || {}) };
 
         let dates = [...(h.dates || [])];
-        if (next >= targetValue && !dates.includes(date)) {
-          dates.push(date);
+        if (next >= targetValue) {
+          if (!dates.includes(date)) {
+            dates.push(date);
+          }
           completedAt[date] = now;
-        } else if (next < targetValue && dates.includes(date)) {
+          delete uncompletedAt[date];
+        } else {
           dates = dates.filter(d => d !== date);
-          uncompletedAt[date] = now;
+          if (next === 0) {
+            uncompletedAt[date] = now;
+            delete completedAt[date];
+          } else {
+            delete uncompletedAt[date];
+          }
         }
         
         return {

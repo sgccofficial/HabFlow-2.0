@@ -18,8 +18,7 @@ export function mergeHabit(localH: Habit, remoteH: Habit): Habit {
   const localUncompletedAt: Record<string, number> = { ...(localH.uncompletedAt || {}) };
   const remoteUncompletedAt: Record<string, number> = { ...(remoteH.uncompletedAt || {}) };
 
-  // Support legacy dates: If any habit has dates without timestamps,
-  // assign timestamp based on habit update time or baseline so completions are preserved
+  // Support legacy dates
   for (const d of (localH.dates || [])) {
     if (!localCompletedAt[d]) {
       localCompletedAt[d] = localUpdated || 1;
@@ -60,54 +59,45 @@ export function mergeHabit(localH: Habit, remoteH: Habit): Habit {
     finalDatesSet.add(d);
   }
 
-  // Also include dates where progress is recorded
-  for (const [d, val] of Object.entries(localH.progress || {})) {
-    if (val > 0) {
-      const uTs = mergedUncompletedAt[d] || 0;
-      const cTs = mergedCompletedAt[d] || 1;
-      if (uTs <= cTs) finalDatesSet.add(d);
-    }
-  }
-  for (const [d, val] of Object.entries(remoteH.progress || {})) {
-    if (val > 0) {
-      const uTs = mergedUncompletedAt[d] || 0;
-      const cTs = mergedCompletedAt[d] || 1;
-      if (uTs <= cTs) finalDatesSet.add(d);
-    }
-  }
-
-  const finalDates = Array.from(finalDatesSet).sort();
-
-  // 2. Progress map: merge by taking the maximum progress for each date,
-  // while ensuring completed dates have at least the base progress or target
+  // 2. Progress map: merge progress safely without resetting partial progress to 0
   const mergedProgress: Record<string, number> = {};
   const allProgressDates = new Set([
     ...Object.keys(localH.progress || {}),
     ...Object.keys(remoteH.progress || {})
   ]);
+
   for (const d of allProgressDates) {
-    const locP = localH.progress?.[d] || 0;
-    const remP = remoteH.progress?.[d] || 0;
-    const maxP = Math.max(locP, remP);
-    if (finalDates.includes(d)) {
-      mergedProgress[d] = maxP > 0 ? maxP : (base.progress?.[d] || 1);
-    } else {
-      const uTs = mergedUncompletedAt[d] || 0;
-      const cTs = mergedCompletedAt[d] || 0;
-      if (uTs >= cTs && uTs > 0) {
-        mergedProgress[d] = 0;
+    const locP = localH.progress?.[d];
+    const remP = remoteH.progress?.[d];
+
+    let chosenProgress = 0;
+    if (locP !== undefined && remP !== undefined) {
+      if (localUpdated > remoteUpdated) {
+        chosenProgress = locP;
+      } else if (remoteUpdated > localUpdated) {
+        chosenProgress = remP;
       } else {
-        mergedProgress[d] = maxP;
+        chosenProgress = Math.max(locP, remP);
       }
+    } else if (locP !== undefined) {
+      chosenProgress = locP;
+    } else if (remP !== undefined) {
+      chosenProgress = remP;
+    }
+
+    const uTs = mergedUncompletedAt[d] || 0;
+    const cTs = mergedCompletedAt[d] || 0;
+
+    // An uncomplete action should ONLY reset progress to 0 if it occurred AFTER the last progress update
+    if (uTs > cTs && uTs > Math.max(localUpdated, remoteUpdated)) {
+      mergedProgress[d] = 0;
+      finalDatesSet.delete(d);
+    } else {
+      mergedProgress[d] = chosenProgress;
     }
   }
 
-  // Ensure every completed date has at least progress 1
-  for (const d of finalDates) {
-    if (!mergedProgress[d] || mergedProgress[d] <= 0) {
-      mergedProgress[d] = 1;
-    }
-  }
+  const finalDates = Array.from(finalDatesSet).sort();
 
   // Ensure scheduleHistory is retained
   let scheduleHistory = base.scheduleHistory;
