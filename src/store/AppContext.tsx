@@ -488,11 +488,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
                 if (data.habits && Array.isArray(data.habits)) {
                   const cloudHabits: Habit[] = data.habits;
-                  const isPending = hasPendingOfflineWrites.current || localStorage.getItem('habitflow_pending_offline_sync') === 'true';
-                  let nextHabits = cloudHabits;
-                  if (isPending && habitsRef.current.length > 0) {
-                    nextHabits = mergeHabitLists(habitsRef.current, cloudHabits);
-                  }
+                  const nextHabits = mergeHabitLists(habitsRef.current, cloudHabits);
                   const str = JSON.stringify(nextHabits);
                   if (str !== JSON.stringify(habitsRef.current)) {
                     habitsRef.current = nextHabits;
@@ -504,11 +500,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
                 if (data.journal && Array.isArray(data.journal)) {
                   const cloudJournal = data.journal;
-                  const isPending = hasPendingOfflineWrites.current || localStorage.getItem('habitflow_pending_offline_sync') === 'true';
-                  let nextJournal = cloudJournal;
-                  if (isPending && journalRef.current.length > 0) {
-                    nextJournal = mergeJournalLists(journalRef.current, cloudJournal);
-                  }
+                  const nextJournal = mergeJournalLists(journalRef.current, cloudJournal);
                   const str = JSON.stringify(nextJournal);
                   if (str !== JSON.stringify(journalRef.current)) {
                     journalRef.current = nextJournal;
@@ -586,11 +578,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         let finalHabits = cloudHabits;
         let finalJournal = cloudJournal;
 
-        const isPending = hasPendingOfflineWrites.current || localStorage.getItem('habitflow_pending_offline_sync') === 'true';
-        if (isPending && habitsRef.current.length > 0) {
-          finalHabits = mergeHabitLists(habitsRef.current, cloudHabits);
-          finalJournal = mergeJournalLists(journalRef.current, cloudJournal);
+        finalHabits = mergeHabitLists(habitsRef.current, cloudHabits);
+        finalJournal = mergeJournalLists(journalRef.current, cloudJournal);
 
+        // Optional: Push back to server if we had pending writes that were not yet synced
+        const isPending = hasPendingOfflineWrites.current || localStorage.getItem('habitflow_pending_offline_sync') === 'true';
+        if (isPending) {
           const cleanData: any = {
             habits: finalHabits,
             journal: finalJournal,
@@ -599,9 +592,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             lastUpdated: Date.now()
           };
           await setDoc(userDocRef, cleanData, { merge: true });
-          hasPendingOfflineWrites.current = false;
-          localStorage.removeItem('habitflow_pending_offline_sync');
-        } else {
           hasPendingOfflineWrites.current = false;
           localStorage.removeItem('habitflow_pending_offline_sync');
         }
