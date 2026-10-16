@@ -1342,7 +1342,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const isTimely = h.durationGoal !== undefined ? h.durationGoal > 0 : h.goalType === 'duration';
         const durationGoal = h.durationGoal || (h.goalType === 'duration' ? (h.durationUnit === 'hr' ? (h.goalValue || 0) * 3600 : h.durationUnit === 'min' ? (h.goalValue || 0) * 60 : (h.goalValue || 0)) : 0);
         const isDaily = h.dailyCompletions !== undefined ? h.dailyCompletions > 0 : (h.goalType === 'daily' || h.goalType === 'weekly');
-        const dailyCompletions = h.dailyCompletions || ((h.goalType === 'daily' || h.goalType === 'weekly') ? h.goalValue || 1 : 1);
+        const dailyCompletions = (h.dailyCompletions !== undefined && h.dailyCompletions !== null) ? h.dailyCompletions : ((h.goalType === 'daily' || h.goalType === 'weekly') ? h.goalValue || 1 : 1);
         
         let targetValue = 1;
         if (isTimely) {
